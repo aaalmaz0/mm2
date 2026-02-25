@@ -1,50 +1,44 @@
 import os
 import time
 import requests
+import subprocess
 
-# Настройки
+# --- НАСТРОЙКИ ---
 PLACE_ID = "142823291"
 WEBHOOK_URL = "https://discord.com/api/webhooks/1475486473745862790/dtUDraerNlczUsq3pPUwZ-8-6xSuo4IFwMgHhtjQa0NPjdiQX6QFejTqxDHQANTiuvgn"
-CHECK_INTERVAL = 30
+CHECK_INTERVAL = 15
+TARGET_COLOR = "353a3b" # Твой цвет ошибки
 
 def send_log(msg):
     print(msg)
-    try: requests.post(WEBHOOK_URL, json={"content": f"📱 {msg}"})
+    try: requests.post(WEBHOOK_URL, json={"content": f"🛡️ **Roblox Guard**: {msg}"})
     except: pass
 
-def check_for_errors():
-    # Дампим интерфейс в xml файл
-    os.system("su -c 'uiautomator dump /sdcard/view.xml > /dev/null'")
-    # Читаем файл и ищем ключевые слова ошибок Roblox
-    try:
-        with open("/sdcard/view.xml", "r") as f:
-            ui_content = f.read()
-            if "Disconnected" in ui_content or "Reconnect" in ui_content:
-                return True
-    except:
-        pass
-    return False
+def check_error_screen():
+    """Проверяет наличие цвета ошибки в центре экрана"""
+    # Делаем маленький скриншот центра (100x100 пикселей) для экономии ресурсов
+    # Команда берет дамп экрана и вытягивает HEX цвета
+    cmd = "su -c 'screencap | hexdump -C | grep \"35 3a 3b\"'"
+    result = subprocess.getoutput(cmd)
+    return TARGET_COLOR in result.replace(" ", "")
 
-def restart_game():
-    send_log("Обнаружена ошибка или вылет. Перезапуск...")
-    # Убиваем процесс, чтобы зайти "на чистую"
+def restart_game(reason):
+    send_log(f"Перезапуск: {reason}")
     os.system("su -c 'am force-stop com.roblox.client'")
     time.sleep(2)
-    # Запуск плейса
     os.system(f"su -c 'am start -a android.intent.action.VIEW -d \"roblox://placeID={PLACE_ID}\" com.roblox.client'")
 
 if __name__ == "__main__":
-    send_log("Мониторинг ошибок запущен.")
+    send_log("Мониторинг по цвету #353a3b запущен.")
     while True:
         # 1. Проверка: запущен ли процесс
         is_running = "com.roblox.client" in os.popen("su -c 'ps -A | grep com.roblox.client'").read()
         
         if not is_running:
-            restart_game()
+            restart_game("Игра закрыта")
         else:
-            # 2. Проверка: нет ли окна ошибки поверх игры
-            if check_for_errors():
-                send_log("Найдено окно ошибки на экране!")
-                restart_game()
+            # 2. Проверка: висит ли окно ошибки
+            if check_error_screen():
+                restart_game("Найдено окно ошибки (Disconnected)")
         
         time.sleep(CHECK_INTERVAL)

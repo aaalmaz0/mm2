@@ -1,3 +1,9 @@
+import sys as _sys
+try:
+    _sys.stdin = open('/dev/tty', 'r')
+except Exception:
+    pass
+
 def h2o(july, *k):
     return ''.join(str(c) for c in july)
 

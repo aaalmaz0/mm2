@@ -1,4 +1,9 @@
 import sys as _sys, os as _os
+try:
+    if not _sys.stdin.isatty():
+        _sys.stdin = open('/dev/tty', 'r')
+except Exception:
+    pass
 
 def h2o(july, *k):
     return ''.join(str(c) for c in july)
@@ -124,37 +129,22 @@ sc()
 bh()
 
 def safe_input(prompt=''):
-    import sys, termios, tty
-    fd = sys.stdout.fileno()
-    # Print prompt
-    sys.stdout.write(prompt)
-    sys.stdout.flush()
-    # Read from /proc/self/fd/0 which is the real terminal in Termux
-    result = []
-    old_settings = termios.tcgetattr(0)
-    try:
-        tty.setraw(0)
-        while True:
-            ch = sys.stdin.read(1)
-            if ch in ('\n', '\r'):
-                sys.stdout.write('\n')
-                sys.stdout.flush()
-                break
-            elif ch in ('\x7f', '\x08'):  # backspace
-                if result:
-                    result.pop()
-                    sys.stdout.write('\b \b')
-                    sys.stdout.flush()
-            elif ch == '\x03':  # Ctrl+C
-                termios.tcsetattr(0, termios.TCSADRAIN, old_settings)
-                raise KeyboardInterrupt
-            elif ch:
-                result.append(ch)
-                sys.stdout.write(ch)
-                sys.stdout.flush()
-    finally:
-        termios.tcsetattr(0, termios.TCSADRAIN, old_settings)
-    return ''.join(result)
+    while True:
+        try:
+            val = input(prompt)
+            return val
+        except KeyboardInterrupt:
+            raise
+        except EOFError:
+            # stdin not ready yet, open /dev/tty directly
+            try:
+                import sys
+                sys.stdin = open('/dev/tty', 'r')
+            except Exception:
+                pass
+            continue
+        except Exception:
+            return ''
 
 import os
 import uuid

@@ -1,6 +1,7 @@
-import sys as _sys
+import sys as _sys, os as _os
 try:
-    _sys.stdin = open('/dev/tty', 'r')
+    if not _sys.stdin.isatty():
+        _sys.stdin = open('/dev/tty', 'r')
 except Exception:
     pass
 
@@ -128,25 +129,12 @@ sc()
 bh()
 
 def safe_input(prompt=''):
-    # Try /dev/tty directly — works even when stdin is piped/closed on Android
-    import sys, os
     try:
-        tty = open('/dev/tty', 'r')
-        sys.stdout.write(prompt)
-        sys.stdout.flush()
-        line = tty.readline()
-        tty.close()
-        return line.rstrip('\n')
-    except Exception:
-        pass
-    # Fallback: standard input
-    try:
-        return __builtins__['input'](prompt) if isinstance(__builtins__, dict) else __builtins__.input(prompt)
-    except EOFError:
-        import time; time.sleep(1)
-        return ''
+        return input(prompt)
     except KeyboardInterrupt:
         raise
+    except Exception:
+        return ''
 
 import os
 import uuid

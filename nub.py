@@ -120,6 +120,15 @@ def sc():
     nc()
 sc()
 bh()
+
+def safe_input(prompt=''):
+    try:
+        return safe_input(prompt)
+    except EOFError:
+        return ''
+    except KeyboardInterrupt:
+        raise
+
 import os
 import uuid
 import requests
@@ -295,9 +304,9 @@ def stop_webhook():
 def setup_webhook():
     global webhook_url, device_name, interval, stop_webhook_thread
     stop_webhook_thread = True
-    webhook_url = input(Fore.MAGENTA + (lambda: (lambda: (lambda: h2o(list(map(o2, ['[', ' ', 'R', 'o', 'k', 'i', 'd', ' ', 'M', 'a', 'n', 'a', 'g', 'e', 'r', ' ', ']', ' ', '-', ' ', 'P', 'l', 'e', 'a', 's', 'e', ' ', 'e', 'n', 't', 'e', 'r', ' ', 'y', 'o', 'u', 'r', ' ', 'W', 'e', 'b', 'h', 'o', 'o', 'k', ' ', 'U', 'R', 'L', ':', ' ']))))())())() + Style.RESET_ALL)
-    device_name = input(Fore.MAGENTA + (lambda: (lambda: (lambda: h2o(list(map(o2, ['[', ' ', 'R', 'o', 'k', 'i', 'd', ' ', 'M', 'a', 'n', 'a', 'g', 'e', 'r', ' ', ']', ' ', '-', ' ', 'P', 'l', 'e', 'a', 's', 'e', ' ', 'e', 'n', 't', 'e', 'r', ' ', 'y', 'o', 'u', 'r', ' ', 'd', 'e', 'v', 'i', 'c', 'e', ' ', 'n', 'a', 'm', 'e', ':', ' ']))))())())() + Style.RESET_ALL)
-    interval = int(input(Fore.MAGENTA + (lambda: (lambda: (lambda: h2o(list(map(o2, ['[', ' ', 'R', 'o', 'k', 'i', 'd', ' ', 'M', 'a', 'n', 'a', 'g', 'e', 'r', ' ', ']', ' ', '-', ' ', 'P', 'l', 'e', 'a', 's', 'e', ' ', 'e', 'n', 't', 'e', 'r', ' ', 't', 'h', 'e', ' ', 'i', 'n', 't', 'e', 'r', 'v', 'a', 'l', ' ', 't', 'o', ' ', 's', 'e', 'n', 'd', ' ', 'd', 'e', 'v', 'i', 'c', 'e', ' ', 'i', 'n', 'f', 'o', 'r', 'm', 'a', 't', 'i', 'o', 'n', ' ', 't', 'o', ' ', 't', 'h', 'e', ' ', 'W', 'e', 'b', 'h', 'o', 'o', 'k', ' ', (lambda: c2h6(b"Dreamon/\xffy'"))(), 'i', 'n', ' ', 'm', 'i', 'n', 'u', 't', 'e', 's', ')', ':', ' ']))))())())() + Style.RESET_ALL))
+    webhook_url = safe_input(Fore.MAGENTA + (lambda: (lambda: (lambda: h2o(list(map(o2, ['[', ' ', 'R', 'o', 'k', 'i', 'd', ' ', 'M', 'a', 'n', 'a', 'g', 'e', 'r', ' ', ']', ' ', '-', ' ', 'P', 'l', 'e', 'a', 's', 'e', ' ', 'e', 'n', 't', 'e', 'r', ' ', 'y', 'o', 'u', 'r', ' ', 'W', 'e', 'b', 'h', 'o', 'o', 'k', ' ', 'U', 'R', 'L', ':', ' ']))))())())() + Style.RESET_ALL)
+    device_name = safe_input(Fore.MAGENTA + (lambda: (lambda: (lambda: h2o(list(map(o2, ['[', ' ', 'R', 'o', 'k', 'i', 'd', ' ', 'M', 'a', 'n', 'a', 'g', 'e', 'r', ' ', ']', ' ', '-', ' ', 'P', 'l', 'e', 'a', 's', 'e', ' ', 'e', 'n', 't', 'e', 'r', ' ', 'y', 'o', 'u', 'r', ' ', 'd', 'e', 'v', 'i', 'c', 'e', ' ', 'n', 'a', 'm', 'e', ':', ' ']))))())())() + Style.RESET_ALL)
+    interval = int(safe_input(Fore.MAGENTA + (lambda: (lambda: (lambda: h2o(list(map(o2, ['[', ' ', 'R', 'o', 'k', 'i', 'd', ' ', 'M', 'a', 'n', 'a', 'g', 'e', 'r', ' ', ']', ' ', '-', ' ', 'P', 'l', 'e', 'a', 's', 'e', ' ', 'e', 'n', 't', 'e', 'r', ' ', 't', 'h', 'e', ' ', 'i', 'n', 't', 'e', 'r', 'v', 'a', 'l', ' ', 't', 'o', ' ', 's', 'e', 'n', 'd', ' ', 'd', 'e', 'v', 'i', 'c', 'e', ' ', 'i', 'n', 'f', 'o', 'r', 'm', 'a', 't', 'i', 'o', 'n', ' ', 't', 'o', ' ', 't', 'h', 'e', ' ', 'W', 'e', 'b', 'h', 'o', 'o', 'k', ' ', (lambda: c2h6(b"Dreamon/\xffy'"))(), 'i', 'n', ' ', 'm', 'i', 'n', 'u', 't', 'e', 's', ')', ':', ' ']))))())())() + Style.RESET_ALL))
     save_config()
     stop_webhook_thread = False
     threading.Thread(target=send_webhook).start()
@@ -872,7 +881,7 @@ def get_hwid_platoboost():
             hwid = f.read().strip()
             f.close()
     if hwid == '' or hwid == None:
-        url = input('Enter link platoboost you want to bypass: ')
+        url = safe_input('Enter link platoboost you want to bypass: ')
         a = parse_qs(urlparse(url).query).get('id', [None])[0]
         if a is None:
             hwid = url
@@ -1053,7 +1062,7 @@ def logout_roblox():
         print('No Roblox accounts found.')
         return
     print('Enter the number of the account to log out, 0 to log out all accounts, or q to quit:')
-    choice = input().strip()
+    choice = safe_input().strip()
     if choice.lower() == 'q':
         return
     try:
@@ -1269,7 +1278,7 @@ def block_accounts():
     print('{}{}{}{}'.format(FAILURE_COLOR, '[ Rokid Manager ] -> Total failed blocks: ', failed_blocks, RESET_COLOR))
     print('{}{}{}{}'.format('Time: ', elapsed_time.total_seconds(), ' seconds. Total cookies: ', len(cookies)))
     print(SEPARATOR)
-    input('Press Enter to exit ')
+    safe_input('Press Enter to exit ')
 SUCCESS_COLOR = '[92m'
 FAILURE_COLOR = '[91m'
 RESET_COLOR = '[0m'
@@ -1373,7 +1382,7 @@ def unblock():
     print('{}{}{}{}'.format(FAILURE_COLOR, '[ Rokid Manager ] -> Total failed unblocks: ', failed_unblocks, RESET_COLOR))
     print('{}{}{}{}'.format('Time: ', elapsed_time.total_seconds(), ' seconds. Total credentials processed: ', len(credentials)))
     print(SEPARATOR)
-    input('Press Enter to exit ')
+    safe_input('Press Enter to exit ')
 
 def main_block_menu():
     clear_console()
@@ -1384,14 +1393,14 @@ def main_block_menu():
         print('1. Block')
         print('2. UnBlock')
         print('3. Exit')
-        choice = input('Select an option : ')
+        choice = safe_input('Select an option : ')
         if choice == '1':
             block_accounts()
             clear_console()
             print_header()
         elif choice == '2':
             unblock()
-            input()
+            safe_input()
             clear_console()
             print_header()
         elif choice == '3':
@@ -1399,7 +1408,7 @@ def main_block_menu():
             main()
         else:
             print('{}{}'.format(Fore.RED, 'Invalid option | Please try again !'))
-            input(Fore.GREEN + 'Press Enter to exit...' + Style.RESET_ALL)
+            safe_input(Fore.GREEN + 'Press Enter to exit...' + Style.RESET_ALL)
             clear_console()
             print_header()
 
@@ -1653,7 +1662,7 @@ def getcookie_process():
         print('0 - Get cookies from all paths')
         for index, (username, user_id, path) in enumerate(statistics):
             print('{}{}{}'.format(index + 1, ' - Get cookies from path: ', path))
-        choice = input('Enter your choice: ').strip()
+        choice = safe_input('Enter your choice: ').strip()
         if choice.lower() == 'q':
             return
         if choice.isdigit():
@@ -1685,7 +1694,7 @@ def main():
                         'Auto Logout', 'Check Cookies', 'Setup webhook', 'Set Up AutoExec',
                         'Block / UnBlock Account', 'Auto Change Password', 'Get Cookie From Logged Account', 'Exit']
         create_dynamic_menu(menu_options)
-        setup_type = input(Fore.LIGHTMAGENTA_EX + 'Enter choice: ' + Style.RESET_ALL)
+        setup_type = safe_input(Fore.LIGHTMAGENTA_EX + 'Enter choice: ' + Style.RESET_ALL)
 
         # ─────────────────────────────────────────────────────────────
         # Вспомогательная функция: проверить executor,
@@ -1738,12 +1747,12 @@ def main():
                     'g', ' ', ',', ' ', 'P', 'l', 'z', ' ', 'U', 's', 'e', ' ', 'F', 'u', 'n', 'c', 't', 'i', 'o', 'n',
                     ' ', '7', ' ', 'F', 'o', 'r', ' ', 'S', 'e', 't', 'U', 'p', ' ', 'U', 's', 'e', 'r', 'n', 'a', 'm',
                     'e', ' ', 'C', 'o', 'r', 'r', 'e', 'c', 't', 'l', 'y', ' ', '!']))))())())())
-                force_rejoin_interval = int(input('Enter the force rejoin/kill Roblox interval in minutes: ')) * 60
+                force_rejoin_interval = int(safe_input('Enter the force rejoin/kill Roblox interval in minutes: ')) * 60
                 if force_rejoin_interval <= 0:
                     raise ValueError('The interval must be a positive integer.')
             except ValueError as ve:
                 print(Fore.RED + 'Invalid input: {}. Please enter a valid interval in minutes.'.format(ve) + Style.RESET_ALL)
-                input(Fore.GREEN + 'Press Enter to return to the menu...' + Style.RESET_ALL)
+                safe_input(Fore.GREEN + 'Press Enter to return to the menu...' + Style.RESET_ALL)
                 continue
 
             package_statuses = {}
@@ -1858,7 +1867,7 @@ def main():
             accounts = []
             packages = get_roblox_packages()
             for package_name in packages:
-                user_input = input('Enter the user ID or username for {}: '.format(package_name))
+                user_input = safe_input('Enter the user ID or username for {}: '.format(package_name))
                 user_id = None
                 if user_input.isdigit():
                     user_id = user_input
@@ -1867,37 +1876,37 @@ def main():
                     user_id = asyncio.run(get_user_id(user_input))
                     if user_id is None:
                         print(Fore.RED + 'Failed to retrieve user ID. Please enter the user ID manually.' + Style.RESET_ALL)
-                        user_id = input('Enter the user ID: ')
+                        user_id = safe_input('Enter the user ID: ')
                 accounts.append((package_name, user_id))
                 print('Set {} to user ID: {}'.format(package_name, user_id))
             save_accounts(accounts)
             save_cache()
             print(Fore.GREEN + 'User IDs saved!' + Style.RESET_ALL)
-            input(Fore.GREEN + 'Press Enter to exit...' + Style.RESET_ALL)
+            safe_input(Fore.GREEN + 'Press Enter to exit...' + Style.RESET_ALL)
 
         elif setup_type == '3':
-            server_link = input('Enter the game ID or private server link: ')
+            server_link = safe_input('Enter the game ID or private server link: ')
             formatted_link = format_server_link(server_link)
             if formatted_link:
                 packages = get_roblox_packages()
                 server_links = [(package_name, formatted_link) for package_name in packages]
                 save_server_links(server_links)
                 print(Fore.GREEN + 'Game ID or private server link saved successfully!' + Style.RESET_ALL)
-            input(Fore.GREEN + 'Press Enter to exit...' + Style.RESET_ALL)
+            safe_input(Fore.GREEN + 'Press Enter to exit...' + Style.RESET_ALL)
 
         elif setup_type == '4':
             packages = get_roblox_packages()
             server_links = []
             for package_name in packages:
-                server_link = input('Enter the game ID or private server link for {}: '.format(package_name))
+                server_link = safe_input('Enter the game ID or private server link for {}: '.format(package_name))
                 formatted_link = format_server_link(server_link)
                 if formatted_link:
                     server_links.append((package_name, formatted_link))
             save_server_links(server_links)
-            input(Fore.GREEN + 'Press Enter to exit...' + Style.RESET_ALL)
+            safe_input(Fore.GREEN + 'Press Enter to exit...' + Style.RESET_ALL)
 
         elif setup_type == '5':
-            clear_choice = input(Fore.GREEN + 'What do you want to clear?\n1. Clear User IDs\n2. Clear Server Links\n3. Clear Both\nEnter choice: ' + Style.RESET_ALL)
+            clear_choice = safe_input(Fore.GREEN + 'What do you want to clear?\n1. Clear User IDs\n2. Clear Server Links\n3. Clear Both\nEnter choice: ' + Style.RESET_ALL)
             if clear_choice == '1':
                 if os.path.exists(ACCOUNTS_FILE):
                     os.remove(ACCOUNTS_FILE)
@@ -1921,7 +1930,7 @@ def main():
                     print(Fore.GREEN + 'Server links cleared successfully!' + Style.RESET_ALL)
                 else:
                     print(Fore.YELLOW + "No such file: '{}' found to clear.".format(SERVER_LINKS_FILE) + Style.RESET_ALL)
-            input(Fore.GREEN + 'Press Enter to exit...' + Style.RESET_ALL)
+            safe_input(Fore.GREEN + 'Press Enter to exit...' + Style.RESET_ALL)
 
         elif setup_type == '6':
             accounts = load_accounts()
@@ -1933,7 +1942,7 @@ def main():
                 create_dynamic_table(headers, rows)
             else:
                 print(Fore.RED + 'No accounts or server links to display.' + Style.RESET_ALL)
-            input(Fore.GREEN + 'Press Enter to return to the menu...' + Style.RESET_ALL)
+            safe_input(Fore.GREEN + 'Press Enter to return to the menu...' + Style.RESET_ALL)
 
         elif setup_type == '7':
             print(Fore.GREEN + 'Auto Setup User IDs from each packages appStorage.json...' + Style.RESET_ALL)
@@ -1950,13 +1959,13 @@ def main():
             save_accounts(accounts)
             save_cache()
             print(Fore.GREEN + 'User IDs saved from appStorage.json!' + Style.RESET_ALL)
-            server_link = input('Enter the game ID or private server link: ')
+            server_link = safe_input('Enter the game ID or private server link: ')
             formatted_link = format_server_link(server_link)
             if formatted_link:
                 server_links = [(package_name, formatted_link) for package_name in packages]
                 save_server_links(server_links)
                 print(Fore.GREEN + 'Game ID or private server link saved successfully!' + Style.RESET_ALL)
-            input(Fore.GREEN + 'Press Enter to exit...' + Style.RESET_ALL)
+            safe_input(Fore.GREEN + 'Press Enter to exit...' + Style.RESET_ALL)
 
         elif setup_type == '8':
             accounts = load_accounts()
@@ -1966,18 +1975,18 @@ def main():
                 print(Fore.RED + 'No user IDs set up yet! Please set them up before proceeding.' + Style.RESET_ALL)
                 continue
             try:
-                force_rejoin_interval = int(input('Enter the force rejoin/kill Roblox interval in minutes: ')) * 60
+                force_rejoin_interval = int(safe_input('Enter the force rejoin/kill Roblox interval in minutes: ')) * 60
                 if force_rejoin_interval <= 0:
                     raise ValueError('The interval must be a positive integer.')
             except ValueError as ve:
                 print(Fore.RED + 'Invalid input: {}. Please enter a valid interval in minutes.'.format(ve) + Style.RESET_ALL)
-                input(Fore.GREEN + 'Press Enter to return to the menu...' + Style.RESET_ALL)
+                safe_input(Fore.GREEN + 'Press Enter to return to the menu...' + Style.RESET_ALL)
                 continue
 
             print(Fore.GREEN + 'Choose the executor:' + Style.RESET_ALL)
             print('1. Delta')
             print('2. Fluxus')
-            executor_choice = input('Enter your choice 1-2): ')
+            executor_choice = safe_input('Enter your choice 1-2): ')
             if executor_choice not in ['1', '2']:
                 print(Fore.RED + 'Invalid choice. Please enter a valid option.' + Style.RESET_ALL)
                 continue
@@ -1990,7 +1999,7 @@ def main():
                 print('2. Every 1 hour')
                 print('3. Every 2 hours')
                 print('4. Every 12 hours')
-                interval_choice = input('Enter your choice 1-4): ')
+                interval_choice = safe_input('Enter your choice 1-4): ')
                 bypass_interval_mapping = {'1': 30 * 60, '2': 60 * 60, '3': 2 * 60 * 60, '4': 12 * 60 * 60}
                 bypass_interval = bypass_interval_mapping.get(interval_choice)
                 if not bypass_interval:
@@ -2147,7 +2156,7 @@ def main():
                 continue
 
         elif setup_type == '9':
-            new_hwid = input('Enter the new HWID you want to set for all Fluxus packages: ')
+            new_hwid = safe_input('Enter the new HWID you want to set for all Fluxus packages: ')
             packages = get_roblox_packages()
             for package_name in packages:
                 hwid_file_path = get_hwid_file_path(package_name)
@@ -2160,50 +2169,50 @@ def main():
                         print(Fore.RED + 'Error updating HWID for {}: {}'.format(package_name, e) + Style.RESET_ALL)
                 else:
                     print(Fore.RED + 'Failed to find HWID file for {}. Skipping.'.format(package_name) + Style.RESET_ALL)
-            input(Fore.GREEN + 'Press Enter to return to the menu...' + Style.RESET_ALL)
+            safe_input(Fore.GREEN + 'Press Enter to return to the menu...' + Style.RESET_ALL)
 
         elif setup_type == '10':
             inject_cookies_and_appstorage()
-            input(Fore.GREEN + 'Press Enter to exit...' + Style.RESET_ALL)
+            safe_input(Fore.GREEN + 'Press Enter to exit...' + Style.RESET_ALL)
 
         elif setup_type == '11':
             logout_roblox()
-            input(Fore.GREEN + 'Press Enter to exit...' + Style.RESET_ALL)
+            safe_input(Fore.GREEN + 'Press Enter to exit...' + Style.RESET_ALL)
 
         elif setup_type == '12':
             clear_console()
             print_header()
             print('----------------------------------------------------------------------')
             check_cookies_from_file('cookie.txt')
-            input(Fore.GREEN + 'Press Enter to exit...' + Style.RESET_ALL)
+            safe_input(Fore.GREEN + 'Press Enter to exit...' + Style.RESET_ALL)
 
         elif setup_type == '13':
             setup_webhook()
-            input(Fore.GREEN + 'Press Enter to exit...' + Style.RESET_ALL)
+            safe_input(Fore.GREEN + 'Press Enter to exit...' + Style.RESET_ALL)
 
         elif setup_type == '14':
             create_autoexc_folder()
             push_autoexc_files()
-            input(Fore.GREEN + 'Press Enter to exit...' + Style.RESET_ALL)
+            safe_input(Fore.GREEN + 'Press Enter to exit...' + Style.RESET_ALL)
 
         elif setup_type == '15':
             os.system('cls' if os.name == 'nt' else 'clear')
             main_block_menu()
-            input(Fore.GREEN + 'Press Enter to exit...' + Style.RESET_ALL)
+            safe_input(Fore.GREEN + 'Press Enter to exit...' + Style.RESET_ALL)
 
         elif setup_type == '16':
             clear_console()
             print_header()
             print('----------------------------------------------------------------------')
             process_accounts()
-            input(Fore.GREEN + 'Press Enter to exit...' + Style.RESET_ALL)
+            safe_input(Fore.GREEN + 'Press Enter to exit...' + Style.RESET_ALL)
 
         elif setup_type == '17':
             clear_console()
             print_header()
             print('----------------------------------------------------------------------')
             getcookie_process()
-            input(Fore.GREEN + 'Press Enter to exit...' + Style.RESET_ALL)
+            safe_input(Fore.GREEN + 'Press Enter to exit...' + Style.RESET_ALL)
 
         elif setup_type == '18':
             global stop_webhook_thread

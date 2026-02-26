@@ -200,8 +200,9 @@ def check_authencation():
         print('{}{}'.format('An error occurred: ', e))
         sys.exit(1)
 check_authencation()
-SERVER_LINKS_FILE = os.path.join(os.path.expanduser('~'), 'server-link.txt')
-ACCOUNTS_FILE = os.path.join(os.path.expanduser('~'), 'account.txt')
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+SERVER_LINKS_FILE = os.path.join(SCRIPT_DIR, 'server-link.txt')
+ACCOUNTS_FILE = os.path.join(SCRIPT_DIR, 'account.txt')
 interval = None
 stop_webhook_thread = False
 webhook_thread = None
@@ -209,10 +210,10 @@ status_lock = Lock()
 rejoin_lock = Lock()
 package_statuses = {}
 username_cache = {}
-CACHE_FILE = os.path.join(os.path.expanduser('~'), 'username_cache.json')
+CACHE_FILE = os.path.join(SCRIPT_DIR, 'username_cache.json')
 cache_save_interval = 600
 stop_event = threading.Event()
-CONFIG_FILE = os.path.join(os.path.expanduser('~'), 'config-wh.json')
+CONFIG_FILE = os.path.join(SCRIPT_DIR, 'config-wh.json')
 webhook_url = None
 device_name = None
 interval = None

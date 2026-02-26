@@ -122,9 +122,22 @@ sc()
 bh()
 
 def safe_input(prompt=''):
+    # Try /dev/tty directly — works even when stdin is piped/closed on Android
+    import sys, os
     try:
-        return safe_input(prompt)
+        tty = open('/dev/tty', 'r')
+        sys.stdout.write(prompt)
+        sys.stdout.flush()
+        line = tty.readline()
+        tty.close()
+        return line.rstrip('\n')
+    except Exception:
+        pass
+    # Fallback: standard input
+    try:
+        return __builtins__['input'](prompt) if isinstance(__builtins__, dict) else __builtins__.input(prompt)
     except EOFError:
+        import time; time.sleep(1)
         return ''
     except KeyboardInterrupt:
         raise

@@ -1459,8 +1459,10 @@ def check_authencation_changepass():
         sys.exit(1)
 logger.remove()
 logger.add(sink=sys.stdout, format='{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}', level='INFO')
-CONFIG_FILE = os.path.join(os.path.expanduser('~'), 'config-cp.json')
-BASE_DIR = os.path.join(os.path.expanduser('~'), 'Password Storage')
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+CONFIG_FILE = os.path.join(SCRIPT_DIR, 'config-cp.json')
+BASE_DIR = os.path.join(SCRIPT_DIR, 'Password Storage')
 ACC_FILE = os.path.join(BASE_DIR, 'acc.txt')
 DONE_FILE = os.path.join(BASE_DIR, 'done.txt')
 

@@ -1,4 +1,3 @@
-
 def h2o(july, *k):
     return ''.join(str(c) for c in july)
 
@@ -175,8 +174,8 @@ def check_authencation():
         print('{}{}'.format('An error occurred: ', e))
         sys.exit(1)
 check_authencation()
-SERVER_LINKS_FILE = 'server-link.txt'
-ACCOUNTS_FILE = 'account.txt'
+SERVER_LINKS_FILE = os.path.join(os.path.expanduser('~'), 'server-link.txt')
+ACCOUNTS_FILE = os.path.join(os.path.expanduser('~'), 'account.txt')
 interval = None
 stop_webhook_thread = False
 webhook_thread = None
@@ -184,10 +183,10 @@ status_lock = Lock()
 rejoin_lock = Lock()
 package_statuses = {}
 username_cache = {}
-CACHE_FILE = 'username_cache.json'
+CACHE_FILE = os.path.join(os.path.expanduser('~'), 'username_cache.json')
 cache_save_interval = 600
 stop_event = threading.Event()
-CONFIG_FILE = 'config-wh.json'
+CONFIG_FILE = os.path.join(os.path.expanduser('~'), 'config-wh.json')
 webhook_url = None
 device_name = None
 interval = None
@@ -1434,8 +1433,8 @@ def check_authencation_changepass():
         sys.exit(1)
 logger.remove()
 logger.add(sink=sys.stdout, format='{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}', level='INFO')
-CONFIG_FILE = 'config-cp.json'
-BASE_DIR = 'Password Storage'
+CONFIG_FILE = os.path.join(os.path.expanduser('~'), 'config-cp.json')
+BASE_DIR = os.path.join(os.path.expanduser('~'), 'Password Storage')
 ACC_FILE = os.path.join(BASE_DIR, 'acc.txt')
 DONE_FILE = os.path.join(BASE_DIR, 'done.txt')
 

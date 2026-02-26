@@ -129,12 +129,22 @@ sc()
 bh()
 
 def safe_input(prompt=''):
-    try:
-        return input(prompt)
-    except KeyboardInterrupt:
-        raise
-    except Exception:
-        return ''
+    while True:
+        try:
+            val = input(prompt)
+            return val
+        except KeyboardInterrupt:
+            raise
+        except EOFError:
+            # stdin not ready yet, open /dev/tty directly
+            try:
+                import sys
+                sys.stdin = open('/dev/tty', 'r')
+            except Exception:
+                pass
+            continue
+        except Exception:
+            return ''
 
 import os
 import uuid
@@ -1692,16 +1702,22 @@ def main():
     clear_screen()
     load_cache()
     print_header()
+    _first_draw = True
     while True:
-        clear_screen()
-        print_header()
-        menu_options = ['Start Auto Rejoin', 'Set User IDs for Each Package', 'Same Game ID or Private Server Link',
-                        'Different Private Server or Game ID', 'Clear User IDs and/or Server Links', 'List',
-                        'Auto Setup User IDs', 'Bypass Start Patched)', 'Same HWID Fluxus', 'Auto Login via Cookie',
-                        'Auto Logout', 'Check Cookies', 'Setup webhook', 'Set Up AutoExec',
-                        'Block / UnBlock Account', 'Auto Change Password', 'Get Cookie From Logged Account', 'Exit']
-        create_dynamic_menu(menu_options)
+        if _first_draw:
+            clear_screen()
+            print_header()
+            menu_options = ['Start Auto Rejoin', 'Set User IDs for Each Package', 'Same Game ID or Private Server Link',
+                            'Different Private Server or Game ID', 'Clear User IDs and/or Server Links', 'List',
+                            'Auto Setup User IDs', 'Bypass Start Patched)', 'Same HWID Fluxus', 'Auto Login via Cookie',
+                            'Auto Logout', 'Check Cookies', 'Setup webhook', 'Set Up AutoExec',
+                            'Block / UnBlock Account', 'Auto Change Password', 'Get Cookie From Logged Account', 'Exit']
+            create_dynamic_menu(menu_options)
+            _first_draw = False
         setup_type = safe_input(Fore.LIGHTMAGENTA_EX + 'Enter choice: ' + Style.RESET_ALL)
+        if not setup_type.strip():
+            continue
+        _first_draw = True
 
         # ─────────────────────────────────────────────────────────────
         # Вспомогательная функция: проверить executor,

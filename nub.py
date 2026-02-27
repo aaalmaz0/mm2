@@ -162,6 +162,7 @@ import sys
 import random
 import string
 import re
+import pyfiglet
 from datetime import datetime
 from colorama import init, Fore, Style
 from threading import Lock
@@ -230,7 +231,7 @@ def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
 def print_header():
-    header = '  _____       _    _     _   __  __                                    |  __      | |  _)   | | |  /  |                                   | |__) |___ | | ___  __| | |   / | __ _ _ __   __ _  __ _  ___ _ __  |  _  // _ | |/ / |/ _` | | |/| |/ _` | _  / _` |/ _` |/ _  __| | |   _) |   <| | _| | | |  | | _| | | | | _| | _| |  __/ |    |_|  ____/|_|__|__,_| |_|  |_|__,_|_| |_|__,_|__, |___|_|                                                          __/ |                                                                |___/                     '
+    header = pyfiglet.figlet_format("nub", font="big_money-nw")
     print(Fore.LIGHTYELLOW_EX + header + Style.RESET_ALL)
     print(Fore.LIGHTYELLOW_EX + 'Developed By Dreamon - Free Version | https://discord.gg/rokidmanager' + Style.RESET_ALL)
 

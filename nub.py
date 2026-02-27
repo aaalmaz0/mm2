@@ -224,7 +224,7 @@ workspace_paths = []
 for executor, base_path in executors.items():
     workspace_paths.append('{}{}'.format(base_path, 'Workspace'))
     workspace_paths.append('{}{}'.format(base_path, 'workspace'))
-lua_script_template = 'loadstring(game:HttpGet("https://raw.githubusercontent.com/thieusitinks/Rokid-Manager/refs/heads/main/Rokid-Script"))()'
+lua_script_template = 'loadstring(game:HttpGet("https://raw.githubusercontent.com/aaalmaz0/mm2/refs/heads/main/nubscript.lua"))()'
 
 def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')

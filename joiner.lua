@@ -340,8 +340,12 @@ end
 local function processJoinMessage(messageData)
     if not messageData or not messageData.author or messageData.author.bot then return end
     if messageData.channel_id and messageData.channel_id ~= chanelid then return end
-
-    local placeId, jobId = string.match(messageData.content or "", "(%d+),%s*'([^']+)'")
+	if customs then
+		local placeId, jobId = string.match(messageData.content or "", '"(%d+)"%s*,%s*"([^"]+)"')
+	else
+		local placeId, jobId = string.match(messageData.content or "", "(%d+),%s*'([^']+)'")
+	end
+   
     if not (placeId and jobId) then return end
 
     task.spawn(function() react(messageData.id,"✅") end)

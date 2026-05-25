@@ -1,3 +1,4 @@
+
 repeat task.wait() until game:IsLoaded()
 nouse = game.Players.LocalPlayer.Character or game.Players.LocalPlayer.CharacterAdded:Wait()
 a = tick()
@@ -338,14 +339,16 @@ local function fetchMessages(afterId)
 end
 
 local function processJoinMessage(messageData)
-    if not messageData or not messageData.author or messageData.author.bot then return end
+    if not messageData or not messageData.author then return end
     if messageData.channel_id and messageData.channel_id ~= chanelid then return end
-	if customs then
-		local placeId, jobId = string.match(messageData.content or "", '"(%d+)"%s*,%s*"([^"]+)"')
-	else
-		local placeId, jobId = string.match(messageData.content or "", "(%d+),%s*'([^']+)'")
-	end
-   
+
+    local content = messageData.content or ""
+    -- format 1:  142823291,'ca7a63aa-...'
+    local placeId, jobId = string.match(content, "(%d+),%s*'([^']+)'")
+    -- format 2:  TeleportToPlaceInstance("142823291", "ca7a63aa-...", ...)
+    if not (placeId and jobId) then
+        placeId, jobId = string.match(content, 'TeleportToPlaceInstance%s*%(%s*"(%d+)"%s*,%s*"([^"]+)"')
+    end
     if not (placeId and jobId) then return end
 
     task.spawn(function() react(messageData.id,"✅") end)

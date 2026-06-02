@@ -659,7 +659,6 @@ invf = inv
 -- ADM posts initial inventory on join (wait for the value list to load first)
 task.spawn(function()
     while not valueList do task.wait(0.1) end
-    inv()
 end)
 
 end

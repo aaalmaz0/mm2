@@ -285,6 +285,14 @@ function invf()
 end
 
 elseif IS_ADM then
+	-- ADM: choose Parents team and spawn at Home (redundant with the early call,
+-- kept as a safety net in case the early one missed before API replicated)
+pcall(function()
+    ReplicatedStorage:WaitForChild("API"):WaitForChild("TeamAPI/ChooseTeam"):InvokeServer("Parents", {
+        source_for_logging = "intro_sequence",
+        dont_enter_location = true
+    })
+end)
 -- ADM: wait for the initial loading UI to finish
 local playerGui = game.Players.LocalPlayer:WaitForChild("PlayerGui")
 local loadingScreen = playerGui:WaitForChild("AssetLoadUI", 60)
@@ -294,14 +302,7 @@ if loadingScreen then
     end
 end
 
--- ADM: choose Parents team and spawn at Home (redundant with the early call,
--- kept as a safety net in case the early one missed before API replicated)
-pcall(function()
-    ReplicatedStorage:WaitForChild("API"):WaitForChild("TeamAPI/ChooseTeam"):InvokeServer("Parents", {
-        source_for_logging = "intro_sequence",
-        dont_enter_location = true
-    })
-end)
+
 
 local API = ReplicatedStorage:WaitForChild("API")
 fod = false

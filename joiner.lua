@@ -1,5 +1,5 @@
 --claude sigmer
-joinGames = joinGames or {[142823291] = true,[920587237] = true,}
+joinGames = {[142823291] = true,[920587237] = true,}
 
 if getgenv().__mm2_autojoiner_loaded then return end
 getgenv().__mm2_autojoiner_loaded = true

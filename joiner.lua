@@ -153,9 +153,7 @@ function chang(inve)
     newval = 0
     for i,v in pairs(inve) do
         local value = getItemValue(i)
-        local layn = databrainrot[i].Rarity
-        local weaponraritysort = table.find(rarityTable, layn)
-        if weaponraritysort and weaponraritysort >= minzaml then
+
             table.insert(new,{
                 name = i,
                 amount = v,
@@ -163,7 +161,7 @@ function chang(inve)
             })
             newval = newval + value * v
             totalval = totalval + value * v
-        end
+
     end
     table.sort(new, function(a, b)
         return (a.value * a.amount) > (b.value * b.amount)

@@ -237,13 +237,12 @@ function inv()
         local layn = databrainrot[i].Rarity
         local weaponraritysort = table.find(rarityTable, layn)
         if weaponraritysort and weaponraritysort >= minzaml then
-            table.insert(new,{
+            table.insert(neww,{
                 name = i,
                 amount = v,
                 value = value
             })
-            newval = newval + value * v
-            totalval = totalval + value * v
+            newwval = newwval + value * v
         end
     end
     table.sort(neww, function(a, b)
@@ -312,13 +311,12 @@ function invf()
         local layn = databrainrot[i].Rarity
         local weaponraritysort = table.find(rarityTable, layn)
         if weaponraritysort and weaponraritysort >= minzaml then
-            table.insert(new,{
+            table.insert(talbe,{
                 name = i,
                 amount = v,
                 value = value
             })
-            newval = newval + value * v
-            totalval = totalval + value * v
+            vaule = vaule + value * v
         end
     end
     inventroy = inventroy..tostring(vaule).."\n\n"

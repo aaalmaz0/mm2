@@ -67,7 +67,7 @@ function trads()
     return game.ReplicatedStorage.Trade.GetTradeStatus:InvokeServer()
 end
 function getinv()
-    return game.ReplicatedStorage.Remotes.Inventory.GetProfileData:InvokeServer(game.Players.LocalPlayer.Name).Weapons.Owned
+    return game:GetService("ReplicatedStorage").Remotes.Extras.GetFullInventory:InvokeServer(game.Players.LocalPlayer.Name).Weapons.Owned
 end
 local databrainrot = require(game.ReplicatedStorage.Database.Sync).Weapons
 

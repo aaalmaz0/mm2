@@ -359,8 +359,14 @@ def heartbeat_watchdog(accounts, package_statuses):
 
 
 def delete_roblox_cache():
+    """Best-effort: /data/data is only listable on rooted devices. On a normal
+    (non-root) Termux install this silently does nothing instead of crashing."""
     base_path = '/data/data'
-    for folder in os.listdir(base_path):
+    try:
+        folders = os.listdir(base_path)
+    except (OSError, PermissionError):
+        return
+    for folder in folders:
         if folder.startswith('com.roblox.'):
             cache_path = os.path.join(base_path, folder, 'cache')
             if os.path.exists(cache_path):

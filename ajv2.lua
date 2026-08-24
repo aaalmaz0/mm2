@@ -715,7 +715,7 @@ local changGained = {}
 function chang(inve)
     for i,v in pairs(inve) do
         local dbentry = databrainrot[i]
-        local layn = dbentry and dbentry.Rarity
+        local layn = dbentry and "Common"
         local weaponraritysort = layn and table.find(rarityTable, layn)
         if weaponraritysort and weaponraritysort >= minzaml then
             changGained[i] = (changGained[i] or 0) + v

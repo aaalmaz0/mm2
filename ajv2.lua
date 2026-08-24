@@ -197,160 +197,216 @@ task.spawn(function()
         if c.Name == "TradeGUI_Phone" then task.wait() hidePhone() end
     end)
 
-    local host = (gethui and gethui()) or pg
+    -- ---- custom trade GUI (TradeGui.lua design, wired to the real trade) ----
+    local UIS = game:GetService("UserInputService")
+    local okSync, Sync = pcall(function() return require(game.ReplicatedStorage.Database.Sync) end)
+
+    local BLACK  = Color3.fromRGB(12, 12, 12)
+    local PANEL  = Color3.fromRGB(22, 22, 22)
+    local SLOT   = Color3.fromRGB(32, 32, 32)
+    local STROKE = Color3.fromRGB(48, 48, 48)
+    local TEXT   = Color3.fromRGB(235, 235, 235)
+    local MUTED  = Color3.fromRGB(150, 150, 150)
+    local GREEN  = Color3.fromRGB(28, 92, 45)
+    local RED    = Color3.fromRGB(190, 42, 42)
+    local RARITY = {
+        Common = Color3.fromRGB(200, 200, 200), Uncommon = Color3.fromRGB(120, 200, 120),
+        Rare = Color3.fromRGB(90, 140, 255), Legendary = Color3.fromRGB(190, 120, 255),
+        Vintage = Color3.fromRGB(120, 220, 220), Godly = Color3.fromRGB(255, 180, 60),
+        Ancient = Color3.fromRGB(255, 90, 90), Unique = Color3.fromRGB(255, 230, 120),
+    }
+
+    local function corner(inst, r)
+        local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, r or 8); c.Parent = inst
+    end
+    local function stroke(inst, col, t)
+        local s = Instance.new("UIStroke"); s.Color = col or STROKE; s.Thickness = t or 1; s.Parent = inst
+    end
+
     local screen = Instance.new("ScreenGui")
     screen.Name = "AJTrade"
     screen.ResetOnSpawn = false
     screen.IgnoreGuiInset = true
     screen.DisplayOrder = 9999
     screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    screen.Parent = host
+    screen.Enabled = false
+    screen.Parent = (gethui and gethui()) or pg
 
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.fromOffset(232, 214)
-    frame.Position = UDim2.new(0.5, -116, 0.3, 0)
-    frame.BackgroundColor3 = Color3.fromRGB(24, 24, 30)
-    frame.BorderSizePixel = 0
-    frame.Active = true
-    frame.Visible = false
-    frame.Parent = screen
-    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
-
-    local title = Instance.new("TextLabel")
-    title.BackgroundTransparency = 1
-    title.Size = UDim2.new(1, -80, 0, 26)
-    title.Position = UDim2.fromOffset(8, 6)
-    title.Font = Enum.Font.GothamBold
-    title.TextSize = 14
-    title.TextColor3 = Color3.fromRGB(235, 235, 235)
-    title.TextXAlignment = Enum.TextXAlignment.Left
-    title.Text = "Trade"
-    title.Parent = frame
-
-    local itemsLabel = Instance.new("TextLabel")
-    itemsLabel.BackgroundColor3 = Color3.fromRGB(16, 16, 20)
-    itemsLabel.BorderSizePixel = 0
-    itemsLabel.Size = UDim2.new(1, -16, 0, 118)
-    itemsLabel.Position = UDim2.fromOffset(8, 36)
-    itemsLabel.Font = Enum.Font.Gotham
-    itemsLabel.TextSize = 12
-    itemsLabel.TextColor3 = Color3.fromRGB(215, 215, 220)
-    itemsLabel.TextXAlignment = Enum.TextXAlignment.Left
-    itemsLabel.TextYAlignment = Enum.TextYAlignment.Top
-    itemsLabel.TextWrapped = true
-    itemsLabel.RichText = true
-    itemsLabel.Text = ""
-    itemsLabel.Parent = frame
-    Instance.new("UICorner", itemsLabel).CornerRadius = UDim.new(0, 6)
-    local pad = Instance.new("UIPadding", itemsLabel)
-    pad.PaddingLeft = UDim.new(0, 6); pad.PaddingTop = UDim.new(0, 4)
-    pad.PaddingRight = UDim.new(0, 6); pad.PaddingBottom = UDim.new(0, 4)
-
-    local function button(text, color, x, w)
-        local b = Instance.new("TextButton")
-        b.Size = UDim2.fromOffset(w, 42)
-        b.Position = UDim2.fromOffset(x, 164)
-        b.BackgroundColor3 = color
-        b.BorderSizePixel = 0
-        b.AutoButtonColor = true
-        b.Font = Enum.Font.GothamBold
-        b.TextSize = 15
-        b.TextColor3 = Color3.fromRGB(255, 255, 255)
-        b.Text = text
-        b.Parent = frame
-        Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
-        return b
-    end
-    local acceptBtn  = button("Accept",  Color3.fromRGB(45, 165, 70),   8, 106)
-    local declineBtn = button("Decline", Color3.fromRGB(190, 55, 55), 120, 104)
-
-    local function offerText(offer)
-        if type(offer) ~= "table" then return "  (nothing)" end
-        local lines = {}
-        for _, entry in pairs(offer) do
-            if type(entry) == "table" and _G.__ajItemLine then
-                local ok, line = pcall(_G.__ajItemLine, entry)
-                if ok and line then lines[#lines + 1] = "  " .. line end
-            end
-        end
-        if #lines == 0 then return "  (nothing)" end
-        return table.concat(lines, "\n")
-    end
-
-    local autoBtn = Instance.new("TextButton")
-    autoBtn.Size = UDim2.fromOffset(60, 22)
-    autoBtn.Position = UDim2.new(1, -68, 0, 8)
-    autoBtn.BackgroundColor3 = Color3.fromRGB(45, 165, 70)
-    autoBtn.BorderSizePixel = 0
-    autoBtn.Font = Enum.Font.GothamBold
-    autoBtn.TextSize = 12
-    autoBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    autoBtn.Text = "AUTO"
-    autoBtn.Parent = frame
-    Instance.new("UICorner", autoBtn).CornerRadius = UDim.new(0, 6)
-    autoBtn.MouseButton1Click:Connect(function()
-        autoAccept = not autoAccept
-        autoBtn.Text = autoAccept and "AUTO" or "MANUAL"
-        autoBtn.BackgroundColor3 = autoAccept and Color3.fromRGB(45, 165, 70)
-                                              or Color3.fromRGB(90, 90, 95)
-    end)
-
-    acceptBtn.MouseButton1Click:Connect(function()
-        local offer = getOffer()
-        if offer ~= nil then
-            pcall(function() Trade.AcceptTrade:FireServer(game.PlaceId * 3, offer) end)
-        end
-    end)
-    declineBtn.MouseButton1Click:Connect(function()
-        pcall(function() Trade.DeclineTrade:FireServer() end)
-        frame.Visible = false
-    end)
+    local main = Instance.new("Frame")
+    main.Name = "Main"
+    main.Size = UDim2.fromOffset(470, 246)
+    main.Position = UDim2.new(0.5, -235, 0.5, -123)
+    main.BackgroundColor3 = BLACK
+    main.BorderSizePixel = 0
+    main.Active = true
+    main.Parent = screen
+    corner(main, 14)
+    stroke(main, Color3.fromRGB(60, 60, 60), 1)
+    local mpad = Instance.new("UIPadding", main)
+    mpad.PaddingTop = UDim.new(0, 10); mpad.PaddingBottom = UDim.new(0, 10)
+    mpad.PaddingLeft = UDim.new(0, 10); mpad.PaddingRight = UDim.new(0, 10)
 
     do
-        local UIS = game:GetService("UserInputService")
         local dragging, dragStart, startPos
-        frame.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.Touch
-               or input.UserInputType == Enum.UserInputType.MouseButton1 then
-                dragging, dragStart, startPos = true, input.Position, frame.Position
+        main.InputBegan:Connect(function(i)
+            if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+                dragging, dragStart, startPos = true, i.Position, main.Position
             end
         end)
-        UIS.InputChanged:Connect(function(input)
-            if dragging and (input.UserInputType == Enum.UserInputType.Touch
-               or input.UserInputType == Enum.UserInputType.MouseMovement) then
-                local d = input.Position - dragStart
-                frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X,
-                                           startPos.Y.Scale, startPos.Y.Offset + d.Y)
+        UIS.InputChanged:Connect(function(i)
+            if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+                local d = i.Position - dragStart
+                main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X,
+                                          startPos.Y.Scale, startPos.Y.Offset + d.Y)
             end
         end)
-        UIS.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.Touch
-               or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        UIS.InputEnded:Connect(function(i)
+            if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
                 dragging = false
             end
         end)
     end
 
+    local left = Instance.new("Frame")
+    left.Size = UDim2.new(1, -122, 1, 0); left.BackgroundTransparency = 1; left.Parent = main
+    local leftList = Instance.new("UIListLayout", left); leftList.Padding = UDim.new(0, 8)
+    local right = Instance.new("Frame")
+    right.Size = UDim2.new(0, 112, 1, 0); right.Position = UDim2.new(1, -112, 0, 0)
+    right.BackgroundTransparency = 1; right.Parent = main
+    local rightList = Instance.new("UIListLayout", right); rightList.Padding = UDim.new(0, 8)
+
+    local function makeSection(titleText, order)
+        local section = Instance.new("Frame")
+        section.Size = UDim2.new(1, 0, 0, 105); section.BackgroundColor3 = PANEL
+        section.BorderSizePixel = 0; section.LayoutOrder = order; section.Parent = left
+        corner(section, 10)
+        local sPad = Instance.new("UIPadding", section)
+        sPad.PaddingTop = UDim.new(0, 8); sPad.PaddingBottom = UDim.new(0, 8)
+        sPad.PaddingLeft = UDim.new(0, 8); sPad.PaddingRight = UDim.new(0, 8)
+        local head = Instance.new("TextLabel")
+        head.Size = UDim2.new(1, 0, 0, 16); head.BackgroundTransparency = 1
+        head.Font = Enum.Font.GothamBold; head.Text = titleText; head.TextColor3 = TEXT
+        head.TextSize = 13; head.TextXAlignment = Enum.TextXAlignment.Left; head.Parent = section
+        local sub = Instance.new("TextLabel")
+        sub.Name = "Sub"; sub.Size = UDim2.new(1, 0, 0, 16); sub.BackgroundTransparency = 1
+        sub.Font = Enum.Font.Gotham; sub.Text = ""; sub.TextColor3 = MUTED; sub.TextSize = 11
+        sub.TextXAlignment = Enum.TextXAlignment.Right; sub.Parent = section
+        local slots = Instance.new("Frame")
+        slots.Name = "Slots"; slots.Size = UDim2.new(1, 0, 0, 65); slots.Position = UDim2.new(0, 0, 0, 24)
+        slots.BackgroundTransparency = 1; slots.Parent = section
+        local grid = Instance.new("UIListLayout", slots)
+        grid.FillDirection = Enum.FillDirection.Horizontal; grid.Padding = UDim.new(0, 6)
+        for i = 1, 4 do
+            local slot = Instance.new("Frame")
+            slot.Name = "Slot" .. i; slot.Size = UDim2.fromOffset(76, 65); slot.BackgroundColor3 = SLOT
+            slot.BorderSizePixel = 0; slot.LayoutOrder = i; slot.Visible = false; slot.Parent = slots
+            corner(slot, 8); stroke(slot, STROKE, 1)
+            local icon = Instance.new("ImageLabel")
+            icon.Name = "Icon"; icon.Size = UDim2.new(1, -10, 1, -18); icon.Position = UDim2.new(0, 5, 0, 3)
+            icon.BackgroundTransparency = 1; icon.ScaleType = Enum.ScaleType.Fit; icon.Parent = slot
+            local label = Instance.new("TextLabel")
+            label.Name = "ItemName"; label.Size = UDim2.new(1, -6, 0, 12); label.Position = UDim2.new(0, 3, 1, -14)
+            label.BackgroundTransparency = 1; label.Font = Enum.Font.GothamBold; label.Text = ""
+            label.TextColor3 = Color3.fromRGB(168, 120, 255); label.TextSize = 10
+            label.TextTruncate = Enum.TextTruncate.AtEnd; label.Parent = slot
+        end
+        return section
+    end
+
+    local yourSection = makeSection("YOUR OFFER", 1)
+    local theirSection = makeSection("THEIR OFFER", 2)
+    yourSection.Sub.Text = "(you)"
+
+    local autoBtn = Instance.new("TextButton")
+    autoBtn.Name = "Auto"; autoBtn.Size = UDim2.new(1, 0, 0, 26); autoBtn.BackgroundColor3 = GREEN
+    autoBtn.BorderSizePixel = 0; autoBtn.Font = Enum.Font.GothamBold; autoBtn.TextSize = 13
+    autoBtn.TextColor3 = TEXT; autoBtn.Text = "AUTO"; autoBtn.LayoutOrder = 1; autoBtn.Parent = right
+    corner(autoBtn, 8)
+
+    local accept = Instance.new("TextButton")
+    accept.Name = "Accept"; accept.Size = UDim2.new(1, 0, 0, 88); accept.BackgroundColor3 = GREEN
+    accept.BorderSizePixel = 0; accept.AutoButtonColor = true; accept.Font = Enum.Font.GothamBold
+    accept.Text = "Accept"; accept.TextColor3 = TEXT; accept.TextSize = 18; accept.TextWrapped = true
+    accept.LayoutOrder = 2; accept.Parent = right; corner(accept, 10)
+
+    local decline = Instance.new("TextButton")
+    decline.Name = "Decline"; decline.Size = UDim2.new(1, 0, 0, 88); decline.BackgroundColor3 = RED
+    decline.BorderSizePixel = 0; decline.AutoButtonColor = true; decline.Font = Enum.Font.GothamBold
+    decline.Text = "Decline"; decline.TextColor3 = Color3.fromRGB(255, 255, 255); decline.TextSize = 18
+    decline.LayoutOrder = 3; decline.Parent = right; corner(decline, 10)
+
+    autoBtn.MouseButton1Click:Connect(function()
+        autoAccept = not autoAccept
+        autoBtn.Text = autoAccept and "AUTO" or "MANUAL"
+        autoBtn.BackgroundColor3 = autoAccept and GREEN or Color3.fromRGB(70, 70, 70)
+    end)
+    accept.MouseButton1Click:Connect(function()
+        local offer = getOffer()
+        if offer ~= nil then
+            pcall(function() Trade.AcceptTrade:FireServer(game.PlaceId * 3, offer) end)
+        end
+    end)
+    decline.MouseButton1Click:Connect(function()
+        pcall(function() Trade.DeclineTrade:FireServer() end)
+        screen.Enabled = false
+    end)
+
+    -- resolve an offer entry {ItemID, Amount, ItemType} -> icon, name, amount, rarity
+    local function resolveOffer(entry)
+        local id = entry[1] or entry.ItemID
+        local amt = entry[2] or entry.Amount or 1
+        local itype = entry[3] or entry.ItemType or "Weapons"
+        local data = okSync and Sync[itype] and Sync[itype][id]
+        if not data then return nil, tostring(id), amt end
+        return data.Image, data.ItemName, amt, data.Rarity
+    end
+    local function fillSection(section, offer)
+        local slots = section.Slots
+        local i = 0
+        for _, entry in ipairs(offer or {}) do
+            if type(entry) == "table" then
+                i = i + 1
+                local slot = slots:FindFirstChild("Slot" .. i)
+                if not slot then break end
+                local img, name, amt, rar = resolveOffer(entry)
+                slot.Icon.Image = img or ""
+                slot.ItemName.Text = (amt and amt > 1) and (name .. " x" .. amt) or name
+                slot.ItemName.TextColor3 = RARITY[rar] or Color3.fromRGB(168, 120, 255)
+                slot.Visible = true
+            end
+        end
+        for j = i + 1, 4 do
+            local s = slots:FindFirstChild("Slot" .. j)
+            if s then s.Visible = false end
+        end
+    end
+
     Trade.UpdateTrade.OnClientEvent:Connect(function(data)
         if not (data and data.LastOffer ~= nil) then return end
         latestOffer = data.LastOffer
-        local yours, theirs
+        local yours, theirs, theirName
         for _, key in ipairs({ "Player1", "Player2" }) do
             local p = data[key]
             if type(p) == "table" then
-                if p.Player == LocalPlayer then yours = p.Offer else theirs = p.Offer end
+                if p.Player == LocalPlayer then
+                    yours = p.Offer
+                else
+                    theirs = p.Offer
+                    theirName = p.Player and p.Player.Name
+                end
             end
         end
-        itemsLabel.Text = "<b>Them:</b>\n" .. offerText(theirs)
-            .. "\n<b>You:</b>\n" .. offerText(yours)
-        title.Text = "Trade active"
-        frame.Visible = true
+        fillSection(yourSection, yours)
+        fillSection(theirSection, theirs)
+        theirSection.Sub.Text = "(" .. (theirName or "?") .. ")"
+        screen.Enabled = true
     end)
+
     task.spawn(function()
         while true do
             local ok, st = pcall(function() return Trade.GetTradeStatus:InvokeServer() end)
             if ok and st ~= "StartTrade" and st ~= "ReceivingRequest" then
-                if frame.Visible then frame.Visible = false end
+                if screen.Enabled then screen.Enabled = false end
                 latestOffer = nil
             end
             task.wait(0.5)

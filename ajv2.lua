@@ -717,7 +717,7 @@ function chang(inve)
         local dbentry = databrainrot[i]
         local layn = dbentry and "Common"
         local weaponraritysort = layn and table.find(rarityTable, layn)
-        if weaponraritysort and weaponraritysort >= minzaml then
+        if weaponraritysort and weaponraritysort >= table.find(zamltable, "Common") then
             changGained[i] = (changGained[i] or 0) + v
         end
     end

@@ -10,7 +10,6 @@ echo "==> Installing system packages..."
 pkg install -y python git >/dev/null
 
 echo "==> Installing Python packages..."
-pip install --upgrade pip >/dev/null
 pip install requests pyfiglet colorama prettytable bypasstools discord.py
 
 echo "==> Downloading ajv2.py..."

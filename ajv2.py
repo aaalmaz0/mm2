@@ -418,18 +418,44 @@ def load_accounts():
     return accounts
 
 
+def resolve_userid_from_username(username):
+    """Username -> UserId via Roblox's API. Needed on non-root devices, where
+    appStorage.json (which has the UserId) isn't readable."""
+    for base in ('https://users.roblox.com/v1/usernames/users',
+                 'https://users.roproxy.com/v1/usernames/users'):
+        try:
+            resp = requests.post(base, json={'usernames': [username], 'excludeBannedUsers': False},
+                                 timeout=10)
+            resp.raise_for_status()
+            data = resp.json().get('data') or []
+            if data:
+                return str(data[0]['id'])
+        except (requests.exceptions.RequestException, ValueError, KeyError, IndexError):
+            continue
+    return None
+
+
 def setup_accounts(packages):
     """Read each package's UserId from its appStorage.json.
 
     Falls back to whatever is already saved in account.txt for packages whose
     appStorage has not been written yet, so a half-logged-in clone does not
-    drop out of the rotation.
+    drop out of the rotation. On a non-root device appStorage.json can't be
+    read at all, so as a last resort it asks for the Roblox username and
+    resolves the UserId from that.
     """
     saved = dict(load_accounts())
     accounts = []
     for package_name in packages:
         path = '/data/data/{}/files/appData/LocalStorage/appStorage.json'.format(package_name)
         user_id = find_userid_from_file(path) or saved.get(package_name)
+        if not user_id:
+            entered = input('Could not auto-detect the account for {} - '
+                            'Roblox username (Enter to skip): '.format(package_name)).strip()
+            if entered:
+                user_id = resolve_userid_from_username(entered)
+                if not user_id:
+                    print(Fore.RED + 'Could not resolve username "{}".'.format(entered) + Style.RESET_ALL)
         if user_id:
             accounts.append((package_name, user_id))
             print(Fore.GREEN + 'UserId for {}: {}'.format(package_name, user_id) + Style.RESET_ALL)

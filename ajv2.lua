@@ -589,58 +589,29 @@ function doRejoin()
     end)
 end
 
-function doTransfer(fromrarity, user)
+-- run one trade round: send a request, wait for it to start, offer up to
+-- ITEMS_PER_TRADE distinct item types from `batch`, wait for the target to
+-- accept, confirm via inventory shrink. Returns true if this batch was sent.
+local function doTransferBatch(target, user, batch)
     local Trade = game:GetService("ReplicatedStorage"):WaitForChild("Trade")
-    user = tostring(user or "")
-    local target = game.Players:FindFirstChild(user)
-    if not target then
-        warn("[mm2] transfer: '" .. user .. "' is not in this server")
-        return
-    end
-    local minIdx = table.find(rarityTable, fromrarity or "Godly") or godlyIdx
-    stopTrade = false
-    setStatus("Transferring")
 
     pcall(function() Trade.SendRequest:InvokeServer(target) end)
-
     local waited = 0
     while trads() ~= "StartTrade" and waited < 15 and not stopTrade do
         waited = waited + task.wait(0.3)
     end
     if stopTrade or trads() ~= "StartTrade" then
         if not stopTrade then warn("[mm2] transfer: trade with " .. user .. " never started") end
-        setStatus("Waiting for trades")
-        return
+        return false
     end
 
-    local eligible = {}
-    for dataId, amount in pairs(getinv()) do
-        local db = databrainrot[dataId]
-        local idx = db and table.find(rarityTable, db.Rarity)
-        if idx and idx >= minIdx then
-            eligible[#eligible + 1] = { id = dataId, amount = amount, value = getItemValue(dataId) }
-        end
-    end
-    table.sort(eligible, function(a, b) return a.value > b.value end)
-
-    for _, it in ipairs(eligible) do
+    for _, it in ipairs(batch) do
         if stopTrade then break end
-        for _ = 1, it.amount do
-            if stopTrade then break end
-            pcall(function() Trade.OfferItem:FireServer(it.id, "Weapons") end)
-            task.wait(0.05)
-        end
+        pcall(function() Trade.OfferItem:FireServer(it.id, "Weapons") end)
+        task.wait(0.15)
     end
-
     task.wait(0.6)
-    if #eligible == 0 then
-        warn("[mm2] transfer: no items at/above " .. tostring(fromrarity) .. " to send")
-        pcall(function() Trade.DeclineTrade:FireServer() end)
-        setStatus("Waiting for trades")
-        return
-    end
 
-    -- keep accepting until the target also accepts (trade ends) or we time out
     local before = getinv()
     local confirmWait = 0
     repeat
@@ -651,17 +622,65 @@ function doTransfer(fromrarity, user)
         confirmWait = confirmWait + task.wait(0.4)
     until trads() ~= "StartTrade" or confirmWait > 15 or stopTrade
 
-    -- confirm: our inventory actually shrank (items left) = target accepted
     local after = getinv()
     local gave = false
-    for _, it in ipairs(eligible) do
+    for _, it in ipairs(batch) do
         if (after[it.id] or 0) < (before[it.id] or 0) then gave = true break end
     end
-    if gave then
-        warn("[mm2] transfer to " .. user .. " completed")
-    else
-        warn("[mm2] transfer to " .. user .. " NOT confirmed (target did not accept)")
+    if not gave then
         pcall(function() Trade.DeclineTrade:FireServer() end)
+    end
+    return gave
+end
+
+-- MM2 caps a single trade offer at ITEMS_PER_TRADE (4) distinct item types, so
+-- a transfer with more than that runs one trade per batch of 4.
+function doTransfer(fromrarity, user)
+    user = tostring(user or "")
+    local target = game.Players:FindFirstChild(user)
+    if not target then
+        warn("[mm2] transfer: '" .. user .. "' is not in this server")
+        return
+    end
+    local minIdx = table.find(rarityTable, fromrarity or "Godly") or godlyIdx
+    stopTrade = false
+    setStatus("Transferring")
+
+    local eligible = {}
+    for dataId, amount in pairs(getinv()) do
+        local db = databrainrot[dataId]
+        local idx = db and table.find(rarityTable, db.Rarity)
+        if idx and idx >= minIdx then
+            eligible[#eligible + 1] = { id = dataId, amount = amount, value = getItemValue(dataId) }
+        end
+    end
+    if #eligible == 0 then
+        warn("[mm2] transfer: no items at/above " .. tostring(fromrarity) .. " to send")
+        setStatus("Waiting for trades")
+        return
+    end
+    table.sort(eligible, function(a, b) return a.value > b.value end)
+
+    local totalBatches = math.ceil(#eligible / ITEMS_PER_TRADE)
+    local sentBatches = 0
+    for i = 1, #eligible, ITEMS_PER_TRADE do
+        if stopTrade then break end
+        local batch = {}
+        for j = i, math.min(i + ITEMS_PER_TRADE - 1, #eligible) do
+            batch[#batch + 1] = eligible[j]
+        end
+        setStatus("Transferring")
+        if doTransferBatch(target, user, batch) then
+            sentBatches = sentBatches + 1
+        end
+    end
+
+    if sentBatches >= totalBatches then
+        warn("[mm2] transfer to " .. user .. " completed (" .. sentBatches .. "/" .. totalBatches .. " trades)")
+    elseif sentBatches > 0 then
+        warn("[mm2] transfer to " .. user .. " partially completed (" .. sentBatches .. "/" .. totalBatches .. " trades)")
+    else
+        warn("[mm2] transfer to " .. user .. " NOT confirmed (0/" .. totalBatches .. " trades)")
     end
     setStatus("Waiting for trades")
 end

@@ -48,6 +48,9 @@ USERNAMES_FILE = os.path.join(SCRIPT_DIR, 'usernames.json')
 DELTA_KEY_FILE = os.path.join(SCRIPT_DIR, 'delta_key.txt')
 KEY_REFRESH_SECONDS = 24 * 60 * 60
 _last_written_key = None
+# some Delta builds re-encrypt the licence file after loading it, so we can't
+# always read the key back out of it - this remembers the key WE wrote instead
+KEY_STATE_FILE = os.path.join(SCRIPT_DIR, 'delta_key_state.txt')
 
 BYPASS_KEY_FILE = os.path.join(SCRIPT_DIR, 'bypass_key.txt')
 HWID_FILE = os.path.join(SCRIPT_DIR, 'delta_hwid.txt')
@@ -1550,7 +1553,9 @@ def read_supplied_key():
 
 def write_delta_licence(key):
     """Copy the key into every Delta clone's licence file. Returns how many
-    were written."""
+    were written. Also remembers the key we just wrote (see current_delta_key) -
+    some Delta builds re-encrypt the licence file once they load it, so reading
+    it back later can't recover the plaintext key."""
     written = 0
     for path in delta_licence_paths():
         try:
@@ -1559,7 +1564,27 @@ def write_delta_licence(key):
             written += 1
         except IOError as e:
             print(Fore.RED + 'Could not write {}: {}'.format(path, e) + Style.RESET_ALL)
+    if written:
+        save_key_state(key)
     return written
+
+
+def save_key_state(key):
+    """Remember the last key we wrote (the licence file may not stay readable)."""
+    try:
+        with open(KEY_STATE_FILE, 'w') as f:
+            json.dump({'key': key, 'ts': time.time()}, f)
+    except IOError:
+        pass
+
+
+def load_key_state():
+    try:
+        with open(KEY_STATE_FILE, 'r') as f:
+            data = json.load(f)
+        return (data.get('key') or '').strip() or None
+    except (IOError, ValueError):
+        return None
 
 
 def refresh_delta_key(package_statuses=None):
@@ -1687,19 +1712,28 @@ def platorelay_start(identifier):
 
 
 def current_delta_key():
-    """The key currently sitting in the first Delta clone's licence file, or
-    None if there is no Delta install / no key written yet. Handles both a raw
-    key and a JSON licence that embeds one."""
+    """The key Delta currently has, preferring the key WE last wrote (see
+    write_delta_licence) since some Delta builds re-encrypt the licence file
+    once they load it, making the plaintext unrecoverable from the file itself.
+    Falls back to reading the licence file directly (handles a raw key or a
+    JSON licence that embeds one) for a key placed there some other way -
+    binary/encrypted content is read leniently but only an actual KEY_/FREE_
+    match counts; garbled decoded bytes are never mistaken for a key."""
+    remembered = load_key_state()
+    if remembered:
+        return remembered
     for path in delta_licence_paths():
         try:
-            with open(path, 'r') as f:
-                content = f.read().strip()
+            with open(path, 'rb') as f:
+                raw = f.read()
         except IOError:
             continue
-        if not content:
+        if not raw:
             continue
+        content = raw.decode('utf-8', errors='ignore')
         match = _KEY_PATTERN.search(content)
-        return match.group(0) if match else content
+        if match:
+            return match.group(0)
     return None
 
 

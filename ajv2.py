@@ -421,17 +421,23 @@ def load_accounts():
 def resolve_userid_from_username(username):
     """Username -> UserId via Roblox's API. Needed on non-root devices, where
     appStorage.json (which has the UserId) isn't readable."""
+    last_err = None
     for base in ('https://users.roblox.com/v1/usernames/users',
                  'https://users.roproxy.com/v1/usernames/users'):
-        try:
-            resp = requests.post(base, json={'usernames': [username], 'excludeBannedUsers': False},
-                                 timeout=10)
-            resp.raise_for_status()
-            data = resp.json().get('data') or []
-            if data:
-                return str(data[0]['id'])
-        except (requests.exceptions.RequestException, ValueError, KeyError, IndexError):
-            continue
+        for attempt in range(2):
+            try:
+                resp = requests.post(base, json={'usernames': [username], 'excludeBannedUsers': False},
+                                     timeout=15)
+                resp.raise_for_status()
+                data = resp.json().get('data') or []
+                if data:
+                    return str(data[0]['id'])
+                last_err = 'no such user (empty result)'
+                break   # a clean empty result means the username is wrong - don't retry
+            except (requests.exceptions.RequestException, ValueError, KeyError, IndexError) as e:
+                last_err = e
+                time.sleep(1)
+    print(Fore.RED + 'Username lookup failed: {}'.format(last_err) + Style.RESET_ALL)
     return None
 
 

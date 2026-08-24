@@ -138,7 +138,8 @@ end
 local function wsSend(status)
     if not statusSocket then return end
     pcall(function()
-        statusSocket:Send(HttpService:JSONEncode({ username = myname, status = status }))
+        statusSocket:Send(HttpService:JSONEncode({
+            username = myname, status = status, jobId = game.JobId }))
     end)
 end
 
@@ -632,9 +633,35 @@ function doTransfer(fromrarity, user)
     end
 
     task.wait(0.6)
-    local offer = getOffer()
-    if not stopTrade and offer ~= nil then
-        pcall(function() Trade.AcceptTrade:FireServer(game.PlaceId * 3, offer) end)
+    if #eligible == 0 then
+        warn("[mm2] transfer: no items at/above " .. tostring(fromrarity) .. " to send")
+        pcall(function() Trade.DeclineTrade:FireServer() end)
+        setStatus("Waiting for trades")
+        return
+    end
+
+    -- keep accepting until the target also accepts (trade ends) or we time out
+    local before = getinv()
+    local confirmWait = 0
+    repeat
+        local offer = getOffer()
+        if offer ~= nil then
+            pcall(function() Trade.AcceptTrade:FireServer(game.PlaceId * 3, offer) end)
+        end
+        confirmWait = confirmWait + task.wait(0.4)
+    until trads() ~= "StartTrade" or confirmWait > 15 or stopTrade
+
+    -- confirm: our inventory actually shrank (items left) = target accepted
+    local after = getinv()
+    local gave = false
+    for _, it in ipairs(eligible) do
+        if (after[it.id] or 0) < (before[it.id] or 0) then gave = true break end
+    end
+    if gave then
+        warn("[mm2] transfer to " .. user .. " completed")
+    else
+        warn("[mm2] transfer to " .. user .. " NOT confirmed (target did not accept)")
+        pcall(function() Trade.DeclineTrade:FireServer() end)
     end
     setStatus("Waiting for trades")
 end
@@ -682,7 +709,7 @@ function ischanged()
     end
     return false
 end
-local minzaml = table.find(zamltable, minrarity)
+local minzaml = table.find(zamltable, "Godly")
 local changMsgId = nil
 local changGained = {}
 function chang(inve)

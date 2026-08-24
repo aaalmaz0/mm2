@@ -113,6 +113,7 @@ def _resolve_bot_token():
 BOT_TOKEN = _resolve_bot_token()
 CHANNEL_ID = ''
 LOG_ID = ''
+TRANSFER_USERS = set()   # empty = anyone can use /transfer and /stoptransfer
 PLACE_NAMES = {
     142823291: 'MM2',
     335132309: 'Disguise',
@@ -686,7 +687,13 @@ def broadcast_command(cmd, args=None):
 _CMD_RE = re.compile(r'^\s*/(\w+)(.*)', re.DOTALL)
 
 
-def handle_command(content):
+def _transfer_allowed(author_id):
+    """True if this Discord user may use /transfer and /stoptransfer. An empty
+    TRANSFER_USERS set means anyone is allowed."""
+    return not TRANSFER_USERS or str(author_id or '') in TRANSFER_USERS
+
+
+def handle_command(content, author_id=None):
     """Parse a '/command' from the channel and relay it to the alts. Returns True
     if the message was a command (so it isn't also treated as a join)."""
     match = _CMD_RE.match(content or '')
@@ -696,6 +703,10 @@ def handle_command(content):
     rest = match.group(2) or ''
     if cmd == 'waitlist':
         print(Fore.LIGHTCYAN_EX + 'Waitlist:\n' + waitlist_text() + Style.RESET_ALL)
+        return True
+    if cmd in ('transfer', 'stoptransfer') and not _transfer_allowed(author_id):
+        print(Fore.RED + '/{} denied for user {} (not authorized)'.format(cmd, author_id)
+              + Style.RESET_ALL)
         return True
     if cmd in ('inv', 'invf', 'rejoin', 'stoptransfer'):
         broadcast_command(cmd)
@@ -887,7 +898,7 @@ def save_settings(settings):
 def ensure_settings():
     """Load token / hits channel / log channel from aj.txt, prompting for any
     that are missing, then save aj.txt and apply them. Runs before joining."""
-    global BOT_TOKEN, CHANNEL_ID, LOG_ID, MIN_RARITY
+    global BOT_TOKEN, CHANNEL_ID, LOG_ID, MIN_RARITY, TRANSFER_USERS
     settings = load_settings()
     token = (settings.get('token') or '').strip()
     chanelid = (settings.get('chanelid') or '').strip()
@@ -909,9 +920,19 @@ def ensure_settings():
         minrarity = entered.title() if entered else 'Godly'
         changed = True
 
+    # 'transferusers' can legitimately be empty (= anyone allowed), so check
+    # whether it was ever set rather than whether it's truthy.
+    if 'transferusers' in settings:
+        transferusers = settings.get('transferusers') or ''
+    else:
+        transferusers = input(
+            'Discord user id(s) allowed to use /transfer and /stoptransfer '
+            '(comma-separated, Enter = anyone): ').strip()
+        changed = True
+
     if changed and token:
-        count = save_settings({'token': token, 'chanelid': chanelid,
-                               'logid': logid, 'minrarity': minrarity})
+        count = save_settings({'token': token, 'chanelid': chanelid, 'logid': logid,
+                               'minrarity': minrarity, 'transferusers': transferusers})
         print(Fore.GREEN + 'Settings saved to aj.txt ({} location(s)).'.format(count) + Style.RESET_ALL)
 
     if token:
@@ -922,6 +943,10 @@ def ensure_settings():
         LOG_ID = logid
     if minrarity:
         MIN_RARITY = minrarity
+    TRANSFER_USERS = {u.strip() for u in transferusers.split(',') if u.strip()}
+    if TRANSFER_USERS:
+        print(Fore.GREEN + '/transfer and /stoptransfer restricted to: {}'.format(
+            ', '.join(TRANSFER_USERS)) + Style.RESET_ALL)
 
 
 # ------------------------------------------------ discord join-channel scan
@@ -1027,7 +1052,7 @@ def react_check(mid):
         pass
 
 
-def handle_channel_message(mid, content, embeds=None, value=None, giver=None):
+def handle_channel_message(mid, content, embeds=None, value=None, giver=None, author_id=None):
     """Single entry point for a channel message from either the gateway or the
     REST backstop. Message-id deduped so nothing runs twice, then command-or-join.
     Returns 'command', 'hit', or None."""
@@ -1036,7 +1061,7 @@ def handle_channel_message(mid, content, embeds=None, value=None, giver=None):
         if mid in _seen_msgs:
             return None
         _seen_msgs.add(mid)
-    if handle_command(content or ''):
+    if handle_command(content or '', author_id):
         return 'command'
     ok = _process_join_message({
         'id': mid,
@@ -1156,8 +1181,9 @@ def discord_scan_loop():
                 last_id = messages[0]['id']
             if not first:
                 for message in reversed(messages):
+                    author_id = (message.get('author') or {}).get('id')
                     if handle_channel_message(message.get('id'), message.get('content'),
-                                              message.get('embeds')) == 'hit':
+                                              message.get('embeds'), author_id=author_id) == 'hit':
                         react_check(message.get('id'))
             first = False
         except Exception as e:
@@ -1297,12 +1323,20 @@ def start_discord_bot():
 
     @tree.command(name='stoptransfer', description='Stop trading / abort any transfer')
     async def _cmd_stoptransfer(interaction):
+        if not _transfer_allowed(interaction.user.id):
+            await interaction.response.send_message('You are not authorized to use this command.',
+                                                     ephemeral=True)
+            return
         broadcast_command('stoptransfer')
         await interaction.response.send_message('`/stoptransfer` sent to the alts.')
 
     @tree.command(name='transfer', description='Trade items at/above a rarity to a user')
     @app_commands.describe(user='Target Roblox username', fromrarity='Minimum rarity (default Godly)')
     async def _cmd_transfer(interaction, user: str, fromrarity: str = 'Godly'):
+        if not _transfer_allowed(interaction.user.id):
+            await interaction.response.send_message('You are not authorized to use this command.',
+                                                     ephemeral=True)
+            return
         broadcast_command('transfer', {'fromrarity': fromrarity, 'user': user})
         await interaction.response.send_message(
             '`/transfer` {}+ -> {} sent to the alts.'.format(fromrarity, user))
@@ -1359,7 +1393,8 @@ def start_discord_bot():
             return
         text = embed_text_discord(message)
         result = handle_channel_message(message.id, message.content or '', None,
-                                        _value_from_text(text), _giver_from_text(text))
+                                        _value_from_text(text), _giver_from_text(text),
+                                        author_id=message.author.id)
         if result == 'hit':
             try:
                 await message.add_reaction('✅')

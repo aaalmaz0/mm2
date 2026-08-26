@@ -19,7 +19,7 @@ local LocalPlayer = game.Players.LocalPlayer
 if not LocalPlayer.Character then LocalPlayer.CharacterAdded:Wait() end
 
 local TeleportService = game:GetService("TeleportService")
-local WS_URL = "ws://127.0.0.1:8177"
+local WS_URL = "ws://" .. (ajsettings.wshost or "127.0.0.1") .. ":8177"
 local myname = LocalPlayer.Name
 local statusSocket
 local currentStatus = "Starting"

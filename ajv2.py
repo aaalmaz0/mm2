@@ -1990,7 +1990,7 @@ def monitor(accounts, package_statuses):
     next_key_check = time.time() + KEY_REFRESH_SECONDS
     while True:
         try:
-            if time.time() >= next_key_check:
+            if False:  # auto key disabled
                 next_key_check = time.time() + KEY_REFRESH_SECONDS
                 if ensure_valid_delta_key(package_statuses):
                     print(Fore.LIGHTCYAN_EX + 'New Delta key - relaunching all packages.'
@@ -1999,8 +1999,6 @@ def monitor(accounts, package_statuses):
                         try:
                             set_status(package_statuses, package_name, Fore.LIGHTCYAN_EX,
                                        'New key, relaunching')
-                            # lock-guarded so the heartbeat watchdog can't also
-                            # relaunch this package at the same time
                             lock = _package_lock(package_name)
                             if not lock.acquire(blocking=False):
                                 continue
@@ -2098,7 +2096,7 @@ def main():
         for package_name, user_id in accounts
     }
 
-    ensure_valid_delta_key(package_statuses)
+    # ensure_valid_delta_key(package_statuses)  # auto key disabled
 
     initial_launch(accounts, package_statuses)
     threading.Thread(target=heartbeat_watchdog, args=(accounts, package_statuses), daemon=True).start()

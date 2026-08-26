@@ -82,6 +82,16 @@ lua_script_template = (
 
 WS_HOST = '0.0.0.0'
 WS_PORT = 8177
+
+def get_local_ip():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(('8.8.8.8', 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return '127.0.0.1'
 EXECUTOR_INACTIVITY_SECONDS = 30
 _WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 _ws_registry = {}
@@ -810,6 +820,15 @@ def start_ws_server():
             print(Fore.RED + 'WS check server could not bind {}:{} - {}'.format(WS_HOST, WS_PORT, e)
                   + Style.RESET_ALL)
             return
+        local_ip = get_local_ip()
+        print(Fore.LIGHTCYAN_EX + 'WS server on {}:{} (mm2.lua will connect to {})'.format(
+            WS_HOST, WS_PORT, local_ip) + Style.RESET_ALL)
+        try:
+            settings = load_settings()
+            settings['wshost'] = local_ip
+            save_settings(settings)
+        except Exception:
+            pass
         while True:
             try:
                 conn, _ = srv.accept()

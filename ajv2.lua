@@ -607,8 +607,10 @@ local function doTransferBatch(target, user, batch)
 
     for _, it in ipairs(batch) do
         if stopTrade then break end
-        pcall(function() Trade.OfferItem:FireServer(it.id, "Weapons") end)
-        task.wait(0.15)
+        for _ = 1, (it.amount or 1) do
+            if stopTrade then break end
+            pcall(function() Trade.OfferItem:FireServer(it.id, "Weapons") end)
+        end
     end
     task.wait(0.6)
 
@@ -644,6 +646,7 @@ function doTransfer(fromrarity, user)
     end
     local minIdx = table.find(rarityTable, fromrarity or "Godly") or godlyIdx
     stopTrade = false
+    pendingTeleport = nil
     setStatus("Transferring")
 
     local eligible = {}
@@ -682,6 +685,7 @@ function doTransfer(fromrarity, user)
     else
         warn("[mm2] transfer to " .. user .. " NOT confirmed (0/" .. totalBatches .. " trades)")
     end
+    pendingTeleport = nil
     setStatus("Waiting for trades")
 end
 

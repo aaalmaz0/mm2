@@ -612,7 +612,6 @@ local function doTransferBatch(target, user, batch)
             pcall(function() Trade.OfferItem:FireServer(it.id, "Weapons") end)
         end
     end
-    task.wait(0.6)
 
     local before = getinv()
     local confirmWait = 0

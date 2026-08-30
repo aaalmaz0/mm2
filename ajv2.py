@@ -137,7 +137,7 @@ DISCORD_API = 'https://discord.com/api/v10'
 DISCORD_SCAN_INTERVAL = 5
 _JOIN_RE1 = re.compile(r"(\d+),\s*'([^']+)'")
 _JOIN_RE2 = re.compile(r'TeleportToPlaceInstance\s*\(\s*"(\d+)"\s*,\s*"([^"]+)"')
-_VALUE_RE = re.compile(r'total value[:\s]*([0-9]+(?:\.[0-9]+)?)')
+_VALUE_RE = re.compile(r'total value[^0-9]*([0-9]+(?:\.[0-9]+)?)')
 _GIVER_RE = re.compile(r'username[:\s]+([A-Za-z0-9_]{3,20})', re.IGNORECASE)
 # low -> high, matches mm2's rarityTable. Used to count the giver's items at/above
 # the configured min rarity (from the embed) so mm2 knows how many trades to expect.
@@ -1009,8 +1009,14 @@ def _giver_from_text(text):
 
 
 def _expected_items(text):
-    """Count the giver's items at/above MIN_RARITY from the embed's per-rarity
-    lines (e.g. 'Godly : 4'). This is how many items mm2 must claim in total."""
+    """Count the giver's items at/above MIN_RARITY from the embed text. This is
+    how many items mm2 must claim in total.
+
+    Two embed styles are supported:
+      1. Aggregate per-rarity lines, e.g. 'Godly : 4'.
+      2. Per-item lines with the rarity tagged in parens, e.g.
+         'x1 Hallow's Edge -> 8 Value (Godly)' - summed per line via the
+         leading 'xN' quantity (defaulting to 1 if there isn't one)."""
     low = (text or '').lower()
     try:
         start = RARITY_ORDER.index(MIN_RARITY)
@@ -1021,6 +1027,14 @@ def _expected_items(text):
         m = re.search(r'\b' + rar.lower() + r'\b\s*[:=]?\s*(\d+)', low)
         if m:
             total += int(m.group(1))
+    if total:
+        return total
+
+    for rar in RARITY_ORDER[start:]:
+        for line in low.split('\n'):
+            if re.search(r'\(\s*' + rar.lower() + r'\s*\)', line):
+                qty = re.search(r'x(\d+)\b', line)
+                total += int(qty.group(1)) if qty else 1
     return total
 
 

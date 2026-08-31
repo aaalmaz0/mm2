@@ -4,7 +4,7 @@
 # Run this any time to pull the latest version without reinstalling everything.
 set -e
 
-REPO_RAW="https://raw.githubusercontent.com/aaalmaz0/mm2/refs/heads/main"
+REPO_RAW="https://raw.githubusercontent.com/aaalmaz0/mm2/main"
 INSTALL_DIR="$HOME/ajv2"
 
 if [ ! -d "$INSTALL_DIR" ]; then
@@ -14,7 +14,7 @@ if [ ! -d "$INSTALL_DIR" ]; then
 fi
 
 echo "==> Updating ajv2.py..."
-curl -fsSL "$REPO_RAW/ajv2.py" -o "$INSTALL_DIR/ajv2.py.new"
+curl -fsSL "$REPO_RAW/nub.py" -o "$INSTALL_DIR/ajv2.py.new"
 mv "$INSTALL_DIR/ajv2.py.new" "$INSTALL_DIR/ajv2.py"
 
 echo "Done. ajv2.py is up to date."

@@ -76,7 +76,7 @@ executors = {
 
 lua_script_template = (
     'loadstring(game:HttpGet('
-    '"https://raw.githubusercontent.com/aaalmaz0/mm2/refs/heads/main/ajv2.lua"'
+    '"https://raw.githubusercontent.com/aaalmaz0/mm2/main/ajv2.lua"'
     '))()'
 )
 

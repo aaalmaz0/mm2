@@ -14,7 +14,7 @@ if [ ! -d "$INSTALL_DIR" ]; then
 fi
 
 echo "==> Updating ajv2.py..."
-curl -fsSL "$REPO_RAW/nub.py" -o "$INSTALL_DIR/ajv2.py.new"
+curl -fsSL "$REPO_RAW/ajv2.py" -o "$INSTALL_DIR/ajv2.py.new"
 mv "$INSTALL_DIR/ajv2.py.new" "$INSTALL_DIR/ajv2.py"
 
 echo "Done. ajv2.py is up to date."

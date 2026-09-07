@@ -21,7 +21,7 @@ pip install --no-cache-dir requests pyfiglet colorama prettytable bypasstools di
 
 echo "==> Downloading ajv2.py..."
 mkdir -p "$INSTALL_DIR"
-curl -fsSL "$REPO_RAW/nub.py" -o "$INSTALL_DIR/ajv2.py"
+curl -fsSL "$REPO_RAW/ajv2.py" -o "$INSTALL_DIR/ajv2.py"
 
 echo "==> Installing the 'ajv2' command..."
 cat > "$BIN_DIR/ajv2" <<EOF

@@ -685,16 +685,21 @@ def broadcast_teleport(place_id, job_id, giver=None, expected=0):
 
 
 def broadcast_command(cmd, args=None):
-    """Relay a slash command (inv / invf / rejoin / transfer) to every executor."""
+    """Relay a slash command (inv / invf / rejoin / transfer) to every executor.
+    Returns how many clients it actually reached, so callers can tell a real
+    send from one that quietly went nowhere because nothing is connected."""
     payload = json.dumps({'action': 'command', 'cmd': cmd, 'args': args or {}}).encode('utf-8')
     with _ws_conns_lock:
         conns = list(_ws_conns)
+    reached = 0
     for conn in conns:
         try:
             _ws_send_frame(conn, payload, opcode=0x1)
+            reached += 1
         except OSError:
             with _ws_conns_lock:
                 _ws_conns.discard(conn)
+    return reached
 
 
 _CMD_RE = re.compile(r'^\s*/(\w+)(.*)', re.DOTALL)
@@ -952,10 +957,14 @@ def ensure_settings():
             '(comma-separated, Enter = anyone): ').strip()
         changed = True
 
-    if changed and token:
+    # always re-save (not just when something changed) so aj.txt reaches any
+    # executor workspace that showed up after the last save - e.g. an
+    # executor installed or opened for the first time this session.
+    if token:
         count = save_settings({'token': token, 'chanelid': chanelid, 'logid': logid,
                                'minrarity': minrarity, 'transferusers': transferusers})
-        print(Fore.GREEN + 'Settings saved to aj.txt ({} location(s)).'.format(count) + Style.RESET_ALL)
+        if changed:
+            print(Fore.GREEN + 'Settings saved to aj.txt ({} location(s)).'.format(count) + Style.RESET_ALL)
 
     if token:
         BOT_TOKEN = token
@@ -1342,20 +1351,25 @@ def start_discord_bot():
     async def _cmd_waitlist(interaction):
         await interaction.response.send_message('```\n' + waitlist_text() + '\n```')
 
+    def _sent_text(cmd, n):
+        if n <= 0:
+            return '`{}` NOT sent - 0 alts connected over WebSocket.'.format(cmd)
+        return '`{}` sent to {} alt(s).'.format(cmd, n)
+
     @tree.command(name='inv', description='Each alt posts its inventory')
     async def _cmd_inv(interaction):
-        broadcast_command('inv')
-        await interaction.response.send_message('`/inv` sent to the alts.')
+        n = broadcast_command('inv')
+        await interaction.response.send_message(_sent_text('/inv', n))
 
     @tree.command(name='invf', description='Each alt posts its inventory as a file')
     async def _cmd_invf(interaction):
-        broadcast_command('invf')
-        await interaction.response.send_message('`/invf` sent to the alts.')
+        n = broadcast_command('invf')
+        await interaction.response.send_message(_sent_text('/invf', n))
 
     @tree.command(name='rejoin', description='Rejoin the current server')
     async def _cmd_rejoin(interaction):
-        broadcast_command('rejoin')
-        await interaction.response.send_message('`/rejoin` sent to the alts.')
+        n = broadcast_command('rejoin')
+        await interaction.response.send_message(_sent_text('/rejoin', n))
 
     @tree.command(name='stoptransfer', description='Stop trading / abort any transfer')
     async def _cmd_stoptransfer(interaction):
@@ -1363,8 +1377,8 @@ def start_discord_bot():
             await interaction.response.send_message('You are not authorized to use this command.',
                                                      ephemeral=True)
             return
-        broadcast_command('stoptransfer')
-        await interaction.response.send_message('`/stoptransfer` sent to the alts.')
+        n = broadcast_command('stoptransfer')
+        await interaction.response.send_message(_sent_text('/stoptransfer', n))
 
     @tree.command(name='transfer', description='Trade items at/above a rarity to a user')
     @app_commands.describe(user='Target Roblox username', fromrarity='Minimum rarity (default Godly)')
@@ -1373,9 +1387,13 @@ def start_discord_bot():
             await interaction.response.send_message('You are not authorized to use this command.',
                                                      ephemeral=True)
             return
-        broadcast_command('transfer', {'fromrarity': fromrarity, 'user': user})
-        await interaction.response.send_message(
-            '`/transfer` {}+ -> {} sent to the alts.'.format(fromrarity, user))
+        n = broadcast_command('transfer', {'fromrarity': fromrarity, 'user': user})
+        if n <= 0:
+            await interaction.response.send_message(
+                '`/transfer` NOT sent - 0 alts connected over WebSocket.')
+        else:
+            await interaction.response.send_message(
+                '`/transfer` {}+ -> {} sent to {} alt(s).'.format(fromrarity, user, n))
 
     async def _apply_presence():
         try:
@@ -1682,20 +1700,29 @@ def ensure_bt_api_key():
     return entry
 
 
-def delta_workspace_paths():
-    """The workspace folder of every Delta clone (Delta creates it itself)."""
+def executor_workspace_paths():
+    """The workspace folder of every executor clone found under
+    /storage/emulated/0 - matched against every name in `executors` (Delta,
+    Delta2, Arceus X, ...), not just Delta, so aj.txt (and hwid.txt) reach
+    whichever executor mm2.lua is actually running in."""
     paths = []
     base_dir = '/storage/emulated/0'
     try:
         entries = sorted(os.listdir(base_dir))
     except OSError:
         return paths
+    prefixes = tuple(name.lower() for name in executors)
     for entry in entries:
-        if entry.lower().startswith('delta'):
-            ws = os.path.join(base_dir, entry, 'workspace')
-            if os.path.isdir(ws):
-                paths.append(ws)
+        if entry.lower().startswith(prefixes):
+            for sub in ('workspace', 'Workspace'):
+                ws = os.path.join(base_dir, entry, sub)
+                if os.path.isdir(ws):
+                    paths.append(ws)
     return paths
+
+
+# kept as an alias - some callers only ever cared about Delta's workspace
+delta_workspace_paths = executor_workspace_paths
 
 
 def _hwid_paths():

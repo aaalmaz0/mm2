@@ -950,6 +950,7 @@ function teleportTo(placeId, jobId, msgid)
     end)
 end
 local socket
+local heartbeatThread   -- current heartbeat coroutine, cancelled explicitly on every HELLO/close
 local sequenceNumber
 local sessionId
 local resumeUrl
@@ -968,6 +969,13 @@ function sendPayload(op, d)
     end)
 end
 
+local function stopHeartbeat()
+    if heartbeatThread then
+        pcall(task.cancel, heartbeatThread)
+        heartbeatThread = nil
+    end
+end
+
 local function connectgateway()
     connectionId = connectionId + 1
     local myId = connectionId
@@ -978,19 +986,18 @@ local function connectgateway()
 
     print("[gateway] connecting (gen "..myId..")")
 
-    -- WebSocket.connect is a YIELDING call. Do NOT wrap it in
-    -- pcall(function() ... end) - that crosses a pcall/closure boundary which
-    -- on some executors returns a socket that never receives HELLO ("dead
+    -- WebSocket.connect is a YIELDING call, called raw/direct exactly like a
+    -- known-working reference implementation - wrapping it in
+    -- pcall(function() ... end) crosses a pcall/closure boundary which on
+    -- some executors returns a socket that never receives HELLO ("dead
     -- socket"). task.spawn is fine (it doesn't have that problem) and gives
     -- us a way to detect the call hanging forever, which is a real failure
-    -- mode seen on some executors: the call never returns at all, not even
-    -- with an error. If that happens, abandon this attempt and retry instead
-    -- of freezing the whole script.
+    -- mode seen on Arceus X: the call never returns at all, not even with an
+    -- error. If that happens, abandon this attempt and retry instead of
+    -- freezing the whole script.
     local gotSocket, newSocket = false, nil
     local connectThread = task.spawn(function()
-        newSocket = WebSocket.connect(url, {
-            ["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        })
+        newSocket = WebSocket.connect(url)
         gotSocket = true
     end)
     local waited = 0
@@ -1016,7 +1023,8 @@ local function connectgateway()
 
     socket.OnMessage:Connect(function(msg)
         if connectionId ~= myId then return end
-        local data = HttpService:JSONDecode(msg)
+        local ok, data = pcall(function() return HttpService:JSONDecode(msg) end)
+        if not ok or type(data) ~= "table" then return end
 
         if data.s then
             sequenceNumber = data.s
@@ -1024,7 +1032,18 @@ local function connectgateway()
 
         if data.op == 10 then
             helloConnId = myId
+            -- cancel any heartbeat still running from a prior HELLO/RESUME on
+            -- this same connection before starting a fresh one, so there is
+            -- never more than one heartbeat loop alive at a time.
+            stopHeartbeat()
             local heartbeatInterval = data.d.heartbeat_interval / 1000
+            heartbeatThread = task.spawn(function()
+                while true do
+                    task.wait(heartbeatInterval)
+                    if connectionId ~= myId then break end
+                    sendPayload(1, sequenceNumber)
+                end
+            end)
             if shouldResume and sessionId and sequenceNumber then
                 print("[gateway] HELLO received, sending RESUME")
                 sendPayload(6, {
@@ -1044,13 +1063,6 @@ local function connectgateway()
                     }
                 })
             end
-            task.spawn(function()
-                while connectionId == myId and socket do
-                    task.wait(heartbeatInterval)
-                    if connectionId ~= myId then break end
-                    sendPayload(1, sequenceNumber)
-                end
-            end)
         end
 
         if data.op == 0 and data.t == "READY" then
@@ -1104,6 +1116,7 @@ local function connectgateway()
     socket.OnClose:Connect(function()
         if connectionId ~= myId then return end   -- stale handler, ignore
         warn("[gateway] closed, reconnecting")
+        stopHeartbeat()
         socket = nil
         if sessionId and sequenceNumber then
             shouldResume = true
@@ -1120,6 +1133,7 @@ local function connectgateway()
         task.wait(6)
         if connectionId == myId and helloConnId ~= myId then
             warn("[gateway] no HELLO (dead socket), retrying now")
+            stopHeartbeat()
             pcall(function() if socket then socket:Close() end end)
             if connectionId == myId then
                 socket = nil
@@ -1133,6 +1147,7 @@ local function connectgateway()
         task.wait(8)
         if connectionId == myId and readyConnId ~= myId then
             warn("[gateway] HELLO but no READY (rate limited?), backing off")
+            stopHeartbeat()
             pcall(function() if socket then socket:Close() end end)
             task.wait(3 + math.random() * 4)
             if connectionId == myId then

@@ -40,18 +40,14 @@ end;
 local exec, execver = identifyexecutor()
 
 -- joiner.lua opens a raw wss:// connection straight to Discord's real gateway
--- (gateway.discord.gg). Confirmed on Arceus X: the socket "opens" but never
--- receives HELLO, retrying forever - and in isolation the same connect call
--- froze/dropped the whole client. That's a gap in Arceus X's own WebSocket/TLS
--- stack, not something fixable here, so bail cleanly instead of looping
--- forever and burning reconnect attempts. Use mm2.lua/ajv2.lua on non-Delta
--- executors - its Discord side runs in Python (ajv2.py) and only talks to the
--- Lua side over a local ws:// relay, which does work everywhere.
+-- (gateway.discord.gg). Previously seen hanging on Arceus X specifically at
+-- the WebSocket.connect() call itself - the gateway section below now wraps
+-- that call with its own timeout/cancel watchdog and a User-Agent header, so
+-- it no longer takes the whole script down if the connect call stalls.
 if tostring(exec):lower() ~= "delta" then
-    warn("[joiner] " .. tostring(exec) .. " is not supported by joiner.lua's direct Discord "
-        .. "gateway connection - it hangs/crashes on the wss:// handshake to gateway.discord.gg. "
-        .. "Use mm2.lua/ajv2.lua on this executor instead.")
-    return
+    warn("[joiner] " .. tostring(exec) .. " has not been confirmed working with joiner.lua's "
+        .. "direct Discord gateway connection - trying anyway. If [gateway] never gets past "
+        .. "'connecting' at all, use mm2.lua/ajv2.lua on this executor instead.")
 end
 
 totalval = 0
@@ -981,11 +977,43 @@ local function connectgateway()
     end
 
     print("[gateway] connecting (gen "..myId..")")
-    -- IMPORTANT: call WebSocket.connect directly, exactly like old.lua.
-    -- It is a YIELDING call; wrapping it in pcall(function() ... end) makes the
-    -- yield cross a pcall/closure boundary, which on many executors returns a
-    -- socket that never receives HELLO ("dead socket"). Do not wrap it.
-    socket = WebSocket.connect(url)
+
+    -- WebSocket.connect is a YIELDING call. Do NOT wrap it in
+    -- pcall(function() ... end) - that crosses a pcall/closure boundary which
+    -- on some executors returns a socket that never receives HELLO ("dead
+    -- socket"). task.spawn is fine (it doesn't have that problem) and gives
+    -- us a way to detect the call hanging forever, which is a real failure
+    -- mode seen on some executors: the call never returns at all, not even
+    -- with an error. If that happens, abandon this attempt and retry instead
+    -- of freezing the whole script.
+    local gotSocket, newSocket = false, nil
+    local connectThread = task.spawn(function()
+        newSocket = WebSocket.connect(url, {
+            ["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        })
+        gotSocket = true
+    end)
+    local waited = 0
+    while not gotSocket and waited < 8 and connectionId == myId do
+        task.wait(0.25)
+        waited = waited + 0.25
+    end
+    if connectionId ~= myId then return end   -- superseded by a newer attempt while we waited
+    if not gotSocket then
+        warn("[gateway] WebSocket.connect did not return within 8s, abandoning this attempt")
+        pcall(task.cancel, connectThread)
+        task.wait(3 + math.random() * 3)
+        if connectionId == myId then connectgateway() end
+        return
+    end
+    socket = newSocket
+    if not socket then
+        warn("[gateway] connect returned nil, retrying")
+        task.wait(5 + math.random() * 5)          -- jitter so alts don't sync up
+        if connectionId == myId then connectgateway() end
+        return
+    end
+
     socket.OnMessage:Connect(function(msg)
         if connectionId ~= myId then return end
         local data = HttpService:JSONDecode(msg)
@@ -1070,12 +1098,6 @@ local function connectgateway()
             end
         end
     end)
-    if not socket then
-        warn("[gateway] connect returned nil, retrying")
-        task.wait(5 + math.random() * 5)          -- jitter so alts don't sync up
-        if connectionId == myId then connectgateway() end
-        return
-    end
 
     print("[gateway] socket open, waiting for handshake")
 

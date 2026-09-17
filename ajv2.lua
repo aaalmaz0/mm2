@@ -47,6 +47,13 @@ local BUSY_STATUS = {
 }
 local function isIdle() return not BUSY_STATUS[currentStatus] end
 
+local bb = game:GetService 'VirtualUser'
+game.Players.LocalPlayer.Idled:Connect(
+    function()
+        bb:CaptureController()
+        bb:ClickButton2(Vector2.new())
+end)
+
 local currentTarget = nil
 local teleporting = false
 

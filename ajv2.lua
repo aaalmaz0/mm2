@@ -742,13 +742,13 @@ function ischanged()
     end
     return false
 end
-local minzaml = table.find(zamltable, "Godly")
+local minzaml = table.find(rarityTable, minrarity) or godlyIdx
 local changMsgId = nil
 local changGained = {}
 function chang(inve)
     for i,v in pairs(inve) do
         local dbentry = databrainrot[i]
-        local layn = dbentry and "Common"
+        local layn = dbentry and dbentry.Rarity
         local weaponraritysort = layn and table.find(rarityTable, layn)
         if weaponraritysort and weaponraritysort >= table.find(zamltable, "Common") then
             changGained[i] = (changGained[i] or 0) + v
@@ -814,7 +814,9 @@ task.spawn(function()
     setStatus("Waiting for trades")
     while true do
         local status,skot = trads()
-        if status == "StartTrade" then
+        if currentStatus == "Transferring" then
+            -- doTransfer drives its own trades; don't decline them or clobber the status
+        elseif status == "StartTrade" then
             setStatus("Trading")
             if needCalc then
                 needCalc = false

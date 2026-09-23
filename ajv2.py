@@ -255,21 +255,29 @@ def get_roblox_packages():
 
 
 def is_roblox_running(package_name):
-    """True if a process for this package is alive. Uses pgrep/ps via the shell
-    (psutil does not build on Android/Termux)."""
+    """True if a process for this package is alive. Reads /proc/<pid>/cmdline
+    (full launch string) - `ps -A` truncates names to 15 chars on Android, so
+    cloned packages like com.roblox.clientalpha never matched there."""
     try:
-        result = subprocess.run(
-            ['pgrep', '-f', package_name],
-            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
-        if result.stdout.strip():
-            return True
-    except (OSError, subprocess.SubprocessError):
+        for pid in os.listdir('/proc'):
+            if not pid.isdigit():
+                continue
+            try:
+                with open('/proc/{}/cmdline'.format(pid), 'rb') as f:
+                    if package_name.encode() in f.read():
+                        return True
+            except (IOError, OSError):
+                continue
+    except OSError:
         pass
-    try:
-        output = subprocess.check_output(['ps', '-A'], text=True, stderr=subprocess.DEVNULL)
-        return package_name in output
-    except (OSError, subprocess.SubprocessError):
-        return False
+    for cmd in (['pgrep', '-f', package_name], ['pidof', package_name]):
+        try:
+            r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+            if r.stdout.strip():
+                return True
+        except (OSError, subprocess.SubprocessError):
+            pass
+    return False
 
 
 def kill_roblox_process(package_name):

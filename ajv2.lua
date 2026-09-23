@@ -882,7 +882,7 @@ function inv()
         local dbentry = databrainrot[i]
         local layn = dbentry and dbentry.Rarity
         local weaponraritysort = layn and table.find(rarityTable, layn)
-        if weaponraritysort and weaponraritysort >= minzaml then
+        if weaponraritysort and weaponraritysort >= godlyIdx then
             table.insert(neww,{
                 name = i,
                 amount = v,

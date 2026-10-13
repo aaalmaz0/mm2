@@ -824,21 +824,34 @@ def _ws_client_thread(conn):
 
 def start_ws_server():
     def serve():
-        srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        try:
-            srv.bind((WS_HOST, WS_PORT))
-            srv.listen(16)
-        except OSError as e:
-            print(Fore.RED + 'WS check server could not bind {}:{} - {}'.format(WS_HOST, WS_PORT, e)
-                  + Style.RESET_ALL)
+        # if the port is taken (another ajv2 still running, or some other app),
+        # walk up to the next free one; the port in use is written to aj.txt
+        # so mm2.lua connects to the right place.
+        srv, port, last_err = None, None, None
+        for candidate in range(WS_PORT, WS_PORT + 20):
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                sock.bind((WS_HOST, candidate))
+                sock.listen(16)
+                srv, port = sock, candidate
+                break
+            except OSError as e:
+                last_err = e
+                sock.close()
+                print(Fore.YELLOW + 'WS port {} is taken, trying {}...'.format(candidate, candidate + 1)
+                      + Style.RESET_ALL)
+        if srv is None:
+            print(Fore.RED + 'WS check server could not bind any port {}-{} - {}'.format(
+                WS_PORT, WS_PORT + 19, last_err) + Style.RESET_ALL)
             return
         local_ip = get_local_ip()
-        print(Fore.LIGHTCYAN_EX + 'WS server on {}:{} (mm2.lua will connect to {})'.format(
-            WS_HOST, WS_PORT, local_ip) + Style.RESET_ALL)
+        print(Fore.LIGHTCYAN_EX + 'WS server on {}:{} (mm2.lua will connect to {}:{})'.format(
+            WS_HOST, port, local_ip, port) + Style.RESET_ALL)
         try:
             settings = load_settings()
             settings['wshost'] = local_ip
+            settings['wsport'] = port
             save_settings(settings)
         except Exception:
             pass
